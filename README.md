@@ -14,7 +14,7 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 
 ## Requirements
 
-- **PHP 8+** (recommended, some libraries I made supports PHP 5.6+)
+- **PHP 8+** (recommended, some libraries I made support PHP 5.6+)
 - A database supported by PDO (see [RedBeanPHP connection guide](https://www.redbeanphp.com/index.php?p=/connection))
 
 ## Quick start
@@ -74,7 +74,7 @@ If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is
 ├─ models/               # Models (RedBean-backed)
 ├─ routes/               # Route definitions (web + API groups)
 ├─ middleware/           # Route middleware (auth, authRedirect)
-├─ views/                # Static HTML pages
+├─ views/                # Static HTML pages or dynamic PHP pages
 ├─ libs/                 # Router, JWT, DotEnv, Auth, RedBeanPHP
 ├─ index.php             # App bootstrap
 ├─ .env.example          # Environment template
