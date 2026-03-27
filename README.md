@@ -4,7 +4,7 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 
 ## Features
 
-- **MVC-ish structure**: `routes/`, `controllers/`, `models/`, `views/`
+- **Model-View-Controller structure**: `routes/`, `controllers/`, `models/`, `views/`
 - **Router with middleware + groups**: supports `GET/POST/PUT/PATCH/DELETE`, route params (`/:id`), and route groups
 - **Dependency injection (lightweight)**: controller methods can receive `Request` and `Response`
 - **JWT auth** (HS256): login/register endpoints + protected routes via middleware
@@ -28,7 +28,12 @@ cd php-mvc-template
 
 2) **Create your environment file**
 
-Copy `.env.example` to `.env` and fill in values:
+Run the command:
+```bash
+cp .env.example .env
+```
+
+Adjust the environment variables:
 
 ```env
 JWT_SECRET=your-super-secret-key-at-least-32-chars-long
