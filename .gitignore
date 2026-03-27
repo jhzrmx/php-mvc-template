@@ -1,0 +1,12 @@
+# Environment and secrets
+.env
+
+# cache and log files
+logs/
+cache/
+
+# Composer dependencies
+vendor/
+
+# RedBean SQLite DB
+data/*.db
