@@ -3,7 +3,7 @@
   # If your application is in a subdirectory, set the RewriteBase to that subdirectory
   RewriteBase /
 
-	# Block access to sensitive files
+  # Block access to sensitive files
   <FilesMatch "\.(env|sql|log|ini|json|lock|bak)$">
     Require all denied
   </FilesMatch>
@@ -17,7 +17,7 @@
   Options -Indexes
 
   # Prevent access to internal directories
-  RewriteRule ^(controllers|models|routes|views)/ - [F,L]
+  RewriteRule ^(controllers|middleware|models|routes|views)/ - [F,L]
   
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
