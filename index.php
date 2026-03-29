@@ -8,10 +8,7 @@ try {
     R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
     
     $jwtSecret = $_ENV['JWT_SECRET'] ?? null;
-    if (empty($jwtSecret) || strlen($jwtSecret) < 32) {
-        throw new Exception('JWT_SECRET must be set in .env and be at least 32 characters.');
-    }
-
+    
     Auth::init(new JWT($jwtSecret));
 
     Route::init();
