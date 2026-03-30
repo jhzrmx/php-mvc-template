@@ -13,8 +13,7 @@ try {
 
     Route::init();
     Route::loadModels();
-    Route::middleware('auth', require 'middleware/auth.php');
-    Route::middleware('authRedirect', require 'middleware/authRedirect.php');
+    Route::loadMiddlewares();
 
     require_once 'routes/web.php';
 

@@ -156,7 +156,7 @@ class Route {
      *
      * @var string
      */
-    private static $controllerDir = 'controllers';
+    private static $controllersDir = 'controllers';
     /**
      * The directory for the routes.
      *
@@ -169,6 +169,12 @@ class Route {
      * @var string
      */
     private static $modelsDir = 'models';
+    /**
+     * The directory for the middlewares.
+     *
+     * @var string
+     */
+    private static $middlewaresDir = 'middleware';
 
     /**
      * Initialize the router.
@@ -240,8 +246,8 @@ class Route {
      * @param string $dir The directory to set.
      * @return void
      */
-    public static function setControllerDir($dir) {
-        self::$controllerDir = rtrim($dir, '/');
+    public static function setControllersDir($dir) {
+        self::$controllersDir = rtrim($dir, '/');
     }
 
     /**
@@ -250,7 +256,7 @@ class Route {
      * @param string $dir The directory to set.
      * @return void
      */
-    public static function setRouteDir($dir) {
+    public static function setRoutesDir($dir) {
         self::$routesDir = rtrim($dir, '/');
     }
 
@@ -356,8 +362,18 @@ class Route {
      */
     public static function group($prefix, $options, $routes = null) {
         if (is_callable($options) || is_string($options)) {
-            $routes = $options;
-            $options = [];
+            // Support signature:
+            //   Route::group('/prefix', 'routes.file', ['middleware1', 'middleware2']);
+            // In this case, the 3rd argument is treated as middleware, and the 2nd
+            // argument is treated as the routes file/callback.
+            if (is_array($routes)) {
+                $middlewares = $routes;
+                $routes = $options;
+                $options = ['middleware' => $middlewares];
+            } else {
+                $routes = $options;
+                $options = [];
+            }
         }
 
         $prevPrefix = self::$group_prefix;
@@ -398,6 +414,20 @@ class Route {
      */
     public static function middleware($name, $callback) {
         self::$middlewares[$name] = $callback;
+    }
+
+    /**
+     * Load the middlewares from the middlewares directory set in $middlewaresDir.
+     *
+     * @return void
+     */
+    public static function loadMiddlewares() {
+        $files = glob(self::rootDir() . "/" . self::$middlewaresDir . '/*.php');
+        if ($files) {
+            foreach ($files as $file) {
+                self::$middlewares[basename($file, '.php')] = require_once $file;
+            }
+        }
     }
 
     /**
@@ -455,7 +485,7 @@ class Route {
      */
     private static function runController($action, $params) {
         list($controller, $method) = explode('@', $action);
-        $file = self::rootDir() . "/" . self::$controllerDir . "/$controller.php";
+        $file = self::rootDir() . "/" . self::$controllersDir . "/$controller.php";
         if (!file_exists($file)) {
             throw new Exception("Controller not found: $controller");
         }
