@@ -115,6 +115,18 @@ Route::get('/api/users/:id', 'UserController@show');
 Route::group('/api/users', 'user.routes', ['auth']);
 ```
 
+## Middleware in Routing
+
+Middleware is loaded from `middleware/*.php` at boot (via `Route::loadMiddlewares()`), and referenced by the filename without the `.php` extension (for example, `middleware/auth.php` is middleware name `auth`).
+
+You can attach middleware in two places:
+- On a single route: pass an array of middleware names as the last argument, e.g. `['authRedirect']`.
+- On a group: pass middleware as the 3rd argument to `Route::group(...)`; all routes registered inside the group inherit the group middleware.
+
+Middleware runs in this order: group middleware first, then the route’s own middleware.
+
+Middleware parameters (optional): if you use `name:param1,param2`, the middleware receives an array of parameters as its `$params` argument (Router splits on `:` and `,`), very useful for **role-based access** routing.
+
 ## Request / Response
 
 Controller methods can type-hint `Request` and/or `Response` and they’ll be passed automatically by the router.
