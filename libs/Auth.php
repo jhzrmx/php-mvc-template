@@ -3,13 +3,54 @@
 /**
  * Simple auth helper. Holds JWT instance and current user payload.
  * Set by auth middleware after successful JWT verification.
+ * Also handles token cookie storage and retrieval.
  */
 class Auth {
     private static $jwt = null;
     private static $payload = null;
+    private static string $tokenCookie = 'token';
 
     public static function init(JWT $jwt) {
         self::$jwt = $jwt;
+    }
+
+    public static function setTokenCookieName(string $tokenCookie) {
+        self::$tokenCookie = $tokenCookie;
+    }
+
+    private static function isSecureRequest() {
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Store a JWT token in an HTTP-only cookie.
+     */
+    public static function setTokenCookie(string $token, int $expiresIn) {
+        $secure = self::isSecureRequest();
+        setcookie(self::$tokenCookie, $token, [
+            'expires' => time() + $expiresIn,
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    public static function clearTokenCookie() {
+        $secure = self::isSecureRequest();
+        setcookie(self::$tokenCookie, '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
     }
 
     public static function getJwt() {
@@ -34,5 +75,10 @@ class Auth {
 
     public static function check() {
         return self::$payload !== null;
+    }
+
+    public static function clear() {
+        self::clearTokenCookie();
+        self::$payload = null;
     }
 }

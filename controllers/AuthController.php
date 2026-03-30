@@ -37,8 +37,8 @@ class AuthController {
             'exp' => time() + $expiresIn,
         ];
         $token = $jwt->sign($payload);
+        Auth::setTokenCookie($token, $expiresIn);
         $res->status(200)->json([
-            'token' => $token,
             'expires_in' => $expiresIn,
             'user' => $userData,
         ]);
@@ -83,5 +83,14 @@ class AuthController {
         $userBean = $username ? User::findByUsername($username) : null;
         $user = $userBean ? User::toArray($userBean) : $payload;
         $res->status(200)->json(['user' => $user]);
+    }
+
+    /**
+     * POST /api/auth/logout
+     * Clears the auth cookie.
+     */
+    public function logout(Request $req, Response $res) {
+        Auth::clearTokenCookie();
+        $res->status(200)->json(['message' => 'Logged out']);
     }
 }

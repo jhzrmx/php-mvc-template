@@ -21,7 +21,9 @@
 <body>
     <div class="header">
         <h1>Dashboard</h1>
-        <a href="/login" id="logout">Log out</a>
+        <form action="/logout" method="post">
+            <button type="submit">Log out</button>
+        </form>
     </div>
     <div class="main">
         <div class="card">

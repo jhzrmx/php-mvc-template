@@ -9,3 +9,8 @@ Route::get('/dashboard-no-js', function(Response $res) {
     $user = Auth::user();
     $res->status(200)->pass(['user' => $user])->file('views/dashboard-no-js.php');
 }, ['authRedirect']);
+
+Route::post('/logout', function(Request $req, Response $res) {
+    Auth::clear();
+    header('Location: /login', true, 302);
+}, ['authRedirect']);
