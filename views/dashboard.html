@@ -34,23 +34,7 @@
     </div>
     <script>
         (function () {
-            function getToken() {
-                var match = document.cookie.match(/token=([^;]+)/);
-                return match ? decodeURIComponent(match[1]) : localStorage.getItem('token');
-            }
-            function clearAuth() {
-                localStorage.removeItem('token');
-                document.cookie = 'token=; path=/; max-age=0';
-                window.location.href = '/login';
-            }
-            var token = getToken();
-            if (!token) {
-                clearAuth();
-                return;
-            }
-            fetch('/api/auth/me', {
-                headers: { 'Authorization': 'Bearer ' + token }
-            })
+            fetch('/api/auth/me')
             .then(function (r) {
                 if (r.status === 401) {
                     clearAuth();
@@ -66,10 +50,6 @@
             })
             .catch(function () {
                 document.getElementById('content').innerHTML = '<p>Something went wrong.</p>';
-            });
-            document.getElementById('logout').addEventListener('click', function (e) {
-                e.preventDefault();
-                clearAuth();
             });
             function escapeHtml(s) {
                 var div = document.createElement('div');
