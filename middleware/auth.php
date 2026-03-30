@@ -13,15 +13,9 @@ return function ($params) {
         $res->status(500)->json(['error' => 'Auth not configured']);
     }
 
-    $authHeader = $req->params['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if (preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
-        $token = trim($m[1]);
-    } elseif (!empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
-        $token = trim($_SERVER['HTTP_X_AUTH_TOKEN']);
-    } elseif (!empty($_COOKIE['token'])) {
-        $token = trim($_COOKIE['token']);
-    } else {
-        $res->status(401)->json(['error' => 'Missing or invalid Authorization header (use Bearer token or X-Auth-Token)']);
+    $token = Auth::getToken();
+    if (!$token) {
+        $res->status(401)->json(['error' => 'Unauthorized']);
     }
 
     $result = $jwt->verify($token);

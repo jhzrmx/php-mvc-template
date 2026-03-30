@@ -13,14 +13,8 @@ return function ($params) {
         exit();
     }
 
-    $authHeader = $req->params['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if (preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
-        $token = trim($m[1]);
-    } elseif (!empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
-        $token = trim($_SERVER['HTTP_X_AUTH_TOKEN']);
-    } elseif (!empty($_COOKIE['token'])) {
-        $token = trim($_COOKIE['token']);
-    } else {
+    $token = Auth::getToken();
+    if (!$token) {
         header('Location: /login', true, 302);
         exit();
     }

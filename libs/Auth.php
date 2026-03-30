@@ -42,6 +42,20 @@ class Auth {
         ]);
     }
 
+    public static function getToken() {
+        $authHeader = $req->params['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
+            $token = trim($m[1]);
+        } elseif (!empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
+            $token = trim($_SERVER['HTTP_X_AUTH_TOKEN']);
+        } elseif (!empty($_COOKIE['token'])) {
+            $token = trim($_COOKIE['token']);
+        } else {
+            return null;
+        }
+        return $token;
+    }
+
     public static function clearTokenCookie() {
         $secure = self::isSecureRequest();
         setcookie(self::$tokenCookie, '', [
