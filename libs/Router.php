@@ -55,6 +55,13 @@ class Request {
 
 class Response {
     /**
+     * Data passed to PHP view files.
+     *
+     * @var array
+     */
+    private array $viewData = [];
+
+    /**
      * Set the status code for the response.
      *
      * @param int $code The status code to set.
@@ -94,11 +101,30 @@ class Response {
      * Send a file response.
      *
      * @param string $file The file to send.
+     * @param array $data Variables to extract into the file scope.
      * @return void
      */
-    public function file($file) {
+    public function file($file, array $data = []) {
+        $vars = array_merge($this->viewData, $data);
+        if (!empty($vars)) {
+            extract($vars, EXTR_SKIP);
+        }
         require $file;
         exit();
+    }
+
+    /**
+     * Add variables to be used by a PHP view file.
+     *
+     * Usage:
+     *   $res->pass(['user' => $user])->file('views/dashboard.php');
+     *
+     * @param array $data
+     * @return $this
+     */
+    public function pass(array $data) {
+        $this->viewData = array_merge($this->viewData, $data);
+        return $this;
     }
 }
 
@@ -635,6 +661,17 @@ class Route {
         self::runMiddlewares($middlewares);
         self::execute($callback, $params);
         exit();
+    }
+
+    /**
+     * Load the web and/or api routes.
+     *
+     * @return void
+     */
+    public static function loadRoutes($routes = ['web', 'api']) {
+        foreach ($routes as $route) {
+            include_once self::rootDir() . '/' . self::$routesDir . "/$route.php";
+        }
     }
 
     /**

@@ -60,7 +60,7 @@
                 if (!data) return;
                 var user = data.user || {};
                 var name = user.username || user.sub || 'User';
-                document.getElementById('content').innerHTML = '<h2>Welcome, ' + escapeHtml(name) + '</h2><p>You are logged in.</p>';
+                document.getElementById('content').innerHTML = '<h2>Welcome, ' + escapeHtml(name) + '</h2><p>You are logged in.</p><a href="/dashboard-no-js">View dashboard without JavaScript</a>';
             })
             .catch(function () {
                 document.getElementById('content').innerHTML = '<p>Something went wrong.</p>';

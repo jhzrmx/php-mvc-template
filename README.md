@@ -91,6 +91,17 @@ If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is
 
 Routes are registered in `routes/web.php` and (via groups) in `routes/*.routes.php`.
 
+- **Loading routes (bootstrap)**
+
+Routes are loaded during app bootstrap from `index.php`:
+
+```php
+Route::init();
+Route::loadModels();
+Route::loadMiddlewares();
+Route::loadRoutes(); // loads routes/web.php + routes/api.php (configurable)
+```
+
 - **Static file/page routes**
 
 ```php
@@ -153,7 +164,18 @@ Route::get('/api/ping', function(Response $res) {
   - `status(int $code)`
   - `json(array $data)` (ends request)
   - `send(string $text, string $contentType = 'text/plain')` (ends request)
-  - `file(string $file)` (includes a PHP/HTML file and ends request)
+  - `file(string $file, array $data = [])` (includes a PHP file and ends request)
+  - `pass(array $data)` (stores variables for the next `file()` call)
+
+- **Passing variables to dynamic PHP views**
+
+If your view is a PHP file (example: `views/dashboard-no-js.php`), you can pass variables into it:
+
+```php
+$res->status(200)->pass(['user' => $user])->file('views/dashboard-no-js.php');
+// or:
+$res->status(200)->file('views/dashboard-no-js.php', ['user' => $user]);
+```
 
 ## Authentication (JWT)
 

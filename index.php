@@ -14,8 +14,7 @@ try {
     Route::init();
     Route::loadModels();
     Route::loadMiddlewares();
-
-    require_once 'routes/web.php';
+    Route::loadRoutes();
 
     Route::add404('views/404.html');
 } catch (Throwable $e) {
