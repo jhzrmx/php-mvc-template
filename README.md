@@ -119,6 +119,18 @@ Route::group('/api/users', 'user.routes', ['auth']);
 
 Controller methods can type-hint `Request` and/or `Response` and they’ll be passed automatically by the router.
 
+- **Closures / callable routes** can do the same:
+```php
+Route::get('/api/dashboard', function(Request $req, Response $res) {
+    $data = $req->body;
+    $res->status(200)->send($data);
+}, ['authRedirect']);
+
+Route::get('/api/ping', function(Response $res) {
+    $res->status(200)->send('Success');
+}, ['authRedirect']);
+```
+
 - **`Request`** provides:
   - `body`: JSON-decoded body (if valid JSON) or raw input string
   - `params`: query string parameters (`$_GET`)

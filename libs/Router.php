@@ -520,7 +520,73 @@ class Route {
      */
     private static function execute($callback, $params) {
         if (is_callable($callback)) {
-            call_user_func_array($callback, $params);
+            // Inject Request/Response into callable callbacks ONLY when the callback
+            // signature declares them, similar to controller type-hint injection.
+            // Any other parameters are filled from the matched route parameters.
+            try {
+                $ref = null;
+                if (is_array($callback) && count($callback) === 2) {
+                    $ref = new ReflectionMethod($callback[0], $callback[1]);
+                } elseif (is_object($callback) && !($callback instanceof Closure) && is_callable($callback)) {
+                    // Support invokable objects: new Foo(); where Foo::__invoke()
+                    $ref = new ReflectionMethod($callback, '__invoke');
+                } else {
+                    $ref = new ReflectionFunction($callback);
+                }
+
+                $args = [];
+                $paramIndex = 0;
+
+                foreach ($ref->getParameters() as $param) {
+                    $type = $param->getType();
+                    $typeNames = [];
+                    if ($type) {
+                        // Named types: Request / Response
+                        if ($type instanceof ReflectionNamedType) {
+                            $typeNames[] = $type->getName();
+                        } elseif ($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType) {
+                            foreach ($type->getTypes() as $t) {
+                                if ($t instanceof ReflectionNamedType) {
+                                    $typeNames[] = $t->getName();
+                                }
+                            }
+                        }
+                    }
+
+                    if (in_array(Request::class, $typeNames, true)) {
+                        $args[] = self::$request;
+                        continue;
+                    }
+                    if (in_array(Response::class, $typeNames, true)) {
+                        $args[] = self::$response;
+                        continue;
+                    }
+
+                    // Non-Request/Response parameter: use matched route params first.
+                    if ($paramIndex < count($params)) {
+                        $args[] = $params[$paramIndex];
+                        $paramIndex++;
+                        continue;
+                    }
+
+                    // Missing parameter: if optional, use default/null.
+                    if ($param->isDefaultValueAvailable()) {
+                        $args[] = $param->getDefaultValue();
+                    } elseif ($param->allowsNull()) {
+                        $args[] = null;
+                    } elseif ($param->isOptional()) {
+                        $args[] = null;
+                    } else {
+                        // Let PHP throw a useful error when required args are missing.
+                        $args[] = null;
+                    }
+                }
+
+                call_user_func_array($callback, $args);
+            } catch (ReflectionException $e) {
+                // Fallback to old behavior if reflection fails.
+                call_user_func_array($callback, $params);
+            }
         } elseif (str_contains($callback, '@')) {
             self::runController($callback, $params);
         } else {
