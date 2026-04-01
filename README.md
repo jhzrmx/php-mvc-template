@@ -14,7 +14,7 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 
 ## Requirements
 
-- **PHP 8+** (recommended, some libraries I made support PHP 5.6+)
+- **PHP 8+** (recommended, some libraries I made still support PHP 5.6+)
 - A database supported by PDO (see [RedBeanPHP connection guide](https://www.redbeanphp.com/index.php?p=/connection))
 
 ## Quick start
@@ -45,7 +45,7 @@ DB_PASS=secret
 ```
 
 Notes:
-- `JWT_SECRET` is **required** and must be **at least 32 characters** (enforced in `index.php` and `libs/JWT.php`).
+- `JWT_SECRET` is **required** and must be **at least 32 characters** (enforced in `libs/JWT.php`).
 - `DB_*` is used by RedBeanPHP via `R::setup(...)` in `index.php`.
 
 3) **Run the app**
