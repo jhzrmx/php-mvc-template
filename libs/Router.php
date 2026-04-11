@@ -465,7 +465,7 @@ class Route {
         $files = glob(self::$modelsDir . '/*.php');
         if ($files) {
             foreach ($files as $file) {
-                require_once $file;
+                require $file;
             }
         }
     }
