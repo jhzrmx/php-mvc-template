@@ -126,6 +126,19 @@ class Response {
         $this->viewData = array_merge($this->viewData, $data);
         return $this;
     }
+    
+    /**
+     * Redirect to a URL.
+     *
+     * @param string $url The URL to redirect to.
+     * @param int $statusCode The status code for the redirect (default: 302).
+     * @return void
+     */
+    public function redirect($url, $statusCode = 302) {
+        http_response_code($statusCode);
+        header("Location: $url");
+        exit();
+    }
 }
 
 class Route {
