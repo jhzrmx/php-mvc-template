@@ -46,24 +46,35 @@
                 showError('');
                 loginBtn.disabled = true;
                 loginBtn.textContent = 'Logging in...';
-                let payload = { username: document.getElementById('username').value.trim(), password: document.getElementById('password').value };
+
+                let payload = {
+                    username: document.getElementById('username').value.trim(),
+                    password: document.getElementById('password').value
+                };
+
                 fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 })
                 .then(function (r) {
-                    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Login failed'); });
+                    if (!r.ok) {
+                        return r.json().then(function (d) {
+                            throw new Error(`${d.error}: ${d.message}` || 'Login failed');
+                        });
+                    }
                     return r.json();
                 })
-                .then(function (data) {
+                .then(function () {
                     window.location.href = '/dashboard';
                 })
                 .catch(function (err) {
                     showError(err.message || 'Login failed');
+                })
+                .finally(function () {
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Log in';
                 });
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Log in';
             });
         })();
     </script>

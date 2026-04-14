@@ -38,6 +38,7 @@
         (function () {
             var form = document.getElementById('form');
             var errorEl = document.getElementById('error');
+            var btn = form.querySelector('button');
             function showError(msg) {
                 errorEl.textContent = msg || '';
                 errorEl.style.display = msg ? 'block' : 'none';
@@ -45,6 +46,8 @@
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
                 showError('');
+                btn.disabled = true;
+                btn.textContent = 'Creating account...';
                 var payload = {
                     username: document.getElementById('username').value.trim(),
                     password: document.getElementById('password').value,
@@ -56,14 +59,22 @@
                     body: JSON.stringify(payload)
                 })
                 .then(function (r) {
-                    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Sign up failed'); });
+                    if (!r.ok) {
+                        return r.json().then(function (d) {
+                            throw new Error(`${d.error}: ${d.message}` || 'Sign up failed');
+                        });
+                    }
                     return r.json();
                 })
-                .then(function (data) {
+                .then(function () {
                     window.location.href = '/dashboard';
                 })
                 .catch(function (err) {
                     showError(err.message || 'Sign up failed');
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Create account';
                 });
             });
         })();
