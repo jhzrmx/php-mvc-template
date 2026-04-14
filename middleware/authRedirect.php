@@ -9,19 +9,19 @@ return function ($params) {
     $jwt = Auth::getJwt();
 
     if (!$jwt) {
-        header('Location: /login', true, 302);
+        $res->redirect('/login');
         exit();
     }
 
     $token = Auth::getToken();
     if (!$token) {
-        header('Location: /login', true, 302);
+        $res->redirect('/login');
         exit();
     }
 
     $result = $jwt->verify($token);
     if (empty($result['valid'])) {
-        header('Location: /login', true, 302);
+        $res->redirect('/login');
         exit();
     }
 
