@@ -1,0 +1,104 @@
+<?php
+
+// mvc - Main CLI runner script
+
+$command = $argv[1] ?? null;
+$args = array_slice($argv, 2);
+
+if (!$command) {
+    showHelp();
+    exit(1);
+}
+
+switch ($command) {
+    case 'serve':
+        handleServeCommand($args);
+        break;
+    case 'help':
+    case '--help':
+    case '-h':
+        showHelp();
+        break;
+    case 'init':
+        init();
+        break;
+    default:
+        echo "Unknown command: {$command}\n";
+        showHelp();
+        exit(1);
+}
+
+function showHelp() {
+    echo <<<HELP
+PHP MVC CLI Tool
+
+Usage:
+  php mvc <command> [options]
+
+Commands:
+  init                Initialize the project (create .env file)
+  serve               Start the PHP development server
+  help                Show this help message
+
+Serve Command Options:
+  --port, -p PORT     Port to run the server on (default: 8000)
+  --host, -H HOST     Host address (default: localhost)
+
+Examples:
+  php mvc serve
+  php mvc serve --port 8080
+  php mvc serve -p 3000
+  php mvc serve --host 0.0.0.0 --port 8888
+
+HELP;
+}
+
+function init() {
+    echo "Initializing project...\n";
+    echo "Creating .env file from .env.example...\n";
+    passthru('cp .env.example .env');
+}
+
+function handleServeCommand($args) {
+    $port = getOptionValue($args, 'port', 'p') ?? '8000';
+    $host = getOptionValue($args, 'host', 'H') ?? 'localhost';
+    
+    echo "Starting PHP development server...\n";
+    echo "Server running at http://{$host}:{$port}/\n";
+    echo "Document root: " . getcwd() . "\n";
+    echo "Press Ctrl+C to stop.\n\n";
+    
+    // Build the command
+    $cmd = sprintf(
+        'php -S %s:%s',
+        escapeshellarg($host),
+        escapeshellarg($port)
+    );
+    
+    // Execute the server
+    passthru($cmd);
+}
+
+function getOptionValue($args, $longName, $shortName = null) {
+    $longPattern = "--{$longName}=";
+    
+    foreach ($args as $arg) {
+        if (strpos($arg, $longPattern) === 0) {
+            return substr($arg, strlen($longPattern));
+        }
+        
+        if ($shortName && $arg === "-{$shortName}" && next($args)) {
+            return current($args);
+        }
+    }
+    
+    // Check for space-separated short option
+    reset($args);
+    for ($i = 0; $i < count($args); $i++) {
+        if ($shortName && $args[$i] === "-{$shortName}" && isset($args[$i + 1])) {
+            return $args[$i + 1];
+        }
+    }
+    
+    return null;
+}
