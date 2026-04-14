@@ -55,6 +55,16 @@ HELP;
 
 function init() {
     echo "Initializing project...\n";
+    if (file_exists('.env')) {
+        echo ".env file already exists. Recreate? (y/n): ";
+        $handle = fopen("php://stdin", "r");
+        $line = fgets($handle);
+        fclose($handle);
+        if (trim($line) !== 'y') {
+            echo "Skipping .env file creation.\n";
+            return;
+        }
+    }
     echo "Creating .env file from .env.example...\n";
     passthru('cp .env.example .env');
 }
