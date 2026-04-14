@@ -71,6 +71,15 @@ class Auth {
         return self::$jwt;
     }
 
+    public static function isVerified() {
+        $token = self::getToken();
+        if (!$token) {
+            return false;
+        }
+        $result = self::$jwt->verify($token);
+        return !empty($result['valid']);
+    }
+
     public static function setPayload(array $payload) {
         self::$payload = $payload;
     }
