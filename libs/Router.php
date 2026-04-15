@@ -555,18 +555,28 @@ class Route {
     /**
      * Run the controller.
      *
-     * @param string $action The action to run.
+     * @param string|array $callback The callback to run.
      * @param array $params The parameters to pass to the controller.
      * @return void
      */
-    private static function runController($action, $params) {
-        list($controller, $method) = explode('@', $action);
-        $file = self::rootDir() . "/" . self::$controllersDir . "/$controller.php";
-        if (!file_exists($file)) {
-            throw new Exception("Controller not found: $controller");
+    private static function runController($callback, $params) {
+        // Still Support: 'AuthController@login'
+        // New Implementation: [MyController::class, 'method']
+        if (is_string($callback)) {
+            list($controller, $method) = explode('@', $callback);
+        } elseif (is_array($callback) && count($callback) === 2) {
+            $controller = $callback[0];
+            $method = $callback[1];
+        } else {
+            throw new Exception("Invalid controller callback.");
         }
-        require_once $file;
-        $instance = new $controller();
+        $className = is_string($controller) ? $controller : get_class($controller);
+        $shortName = basename(str_replace('\\', '/', $className));
+        $file = self::rootDir() . "/" . self::$controllersDir . "/$shortName.php";
+        if (file_exists($file)) {
+            require_once $file;
+        }
+        $instance = new $className();
         $ref = new ReflectionMethod($instance, $method);
         $args = [];
         foreach ($ref->getParameters() as $param) {
@@ -663,7 +673,10 @@ class Route {
                 // Fallback to old behavior if reflection fails.
                 call_user_func_array($callback, $params);
             }
-        } elseif (str_contains($callback, '@')) {
+        } elseif (
+            (is_string($callback) && str_contains($callback, '@')) ||
+            (is_array($callback) && count($callback) === 2)
+        ) {
             self::runController($callback, $params);
         } else {
             require self::rootDir() . '/' . $callback;

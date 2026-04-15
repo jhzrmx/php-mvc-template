@@ -119,12 +119,16 @@ Route::get('/login', 'views/login.html');
 
 ```php
 Route::post('/login', 'AuthController@login');
+// Or use the new format:
+Route::post('/login', [AuthController::class, 'login']);
 ```
 
 - **Route parameters**
 
 ```php
 Route::get('/api/users/:id', 'UserController@show');
+// Or use the new format:
+Route::post('/api/users/:id', [UserController::class, 'show']);
 ```
 
 - **Route groups**
