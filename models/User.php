@@ -2,7 +2,7 @@
 
 /**
  * User model using RedBean (table: user).
- * Fields: username, password_hash, email, created_at
+ * Fields: username, role, password_hash, email, created_at
  */
 class User extends Model {
     protected static $type = 'user';
@@ -19,7 +19,7 @@ class User extends Model {
     /**
      * Create and store a user. Password is hashed. Returns saved bean.
      */
-    public static function create($username, $password, $email = null) {
+    public static function create($username, $password, $email = null, $role = 'user') {
         $username = trim((string) $username);
         if ($username === '') {
             throw new Exception('Username is required.');
@@ -29,6 +29,7 @@ class User extends Model {
         }
         $bean = R::dispense(self::$type);
         $bean->username = $username;
+        $bean->role = $role;
         $bean->password_hash = password_hash($password, PASSWORD_DEFAULT);
         $bean->email = $email !== null ? trim((string) $email) : null;
         $bean->created_at = date('Y-m-d H:i:s');
@@ -60,7 +61,7 @@ class User extends Model {
     }
 
     /**
-     * Update user by id. Allowed keys: username, email, password (will be hashed).
+     * Update user by id. Allowed keys: username, role, email, password (will be hashed).
      */
     public static function updateById($id, $data) {
         $id = (int) $id;
@@ -70,6 +71,9 @@ class User extends Model {
         if (isset($data['username'])) {
             $u = trim((string) $data['username']);
             if ($u !== '') $bean->username = $u;
+        }
+        if (isset($data['role'])) {
+            $bean->role = trim((string) $data['role']);
         }
         if (array_key_exists('email', $data)) $bean->email = $data['email'] ? trim((string) $data['email']) : null;
         if (!empty($data['password'])) $bean->password_hash = password_hash($data['password'], PASSWORD_DEFAULT);

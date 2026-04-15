@@ -38,6 +38,7 @@ class AuthController {
         $payload = [
             'sub' => $username,
             'username' => $username,
+            'role' => $userData['role'] ?? 'user',
             'exp' => time() + $expiresIn,
         ];
         $token = $jwt->sign($payload);
