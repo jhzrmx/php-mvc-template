@@ -12,5 +12,5 @@ Route::get('/dashboard-no-js', function(Response $res) {
 
 Route::post('/logout', function(Request $req, Response $res) {
     Auth::clear();
-    header('Location: /login', true, 302);
+    $res->redirect('/login');
 }, ['authRedirect']);
