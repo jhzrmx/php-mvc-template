@@ -55,7 +55,7 @@ class UserController {
         $res->status(200)->json(User::toArray($bean));
     }
 
-    public function delete(Request $req, Response $res, string $id) {
+    public function destroy(Request $req, Response $res, string $id) {
         if (!User::deleteById($id)) {
             $res->status(404)->json(['error' => 'User not found']);
         }
