@@ -16,16 +16,20 @@ class AuthController {
             $res->status(400)->json(['error' => 'Username and password required']);
         }
 
-        $userBean = User::findByUsername($username);
-        if (!$userBean) {
-            $res->status(401)->json(['error' => 'User not found']);
-        }
-        if (!User::verifyPassword($userBean, $password)) {
-            $res->status(401)->json(['error' => 'Invalid credentials']);
-        }
+        try {
+            $userBean = User::findByUsername($username);
+            if (!$userBean) {
+                $res->status(401)->json(['error' => 'User not found']);
+            }
+            if (!User::verifyPassword($userBean, $password)) {
+                $res->status(401)->json(['error' => 'Invalid credentials']);
+            }
 
-        $userData = User::toArray($userBean);
-        $this->respondWithToken($res, $username, $userData);
+            $userData = User::toArray($userBean);
+            $this->respondWithToken($res, $username, $userData);
+        } catch (Exception $e) {
+            $res->status(400)->json(['error' => 'Login failed', 'message' => $e->getMessage()]);
+        }
     }
 
     private function respondWithToken(Response $res, $username, array $userData) {
@@ -66,7 +70,7 @@ class AuthController {
             $userData = User::toArray($bean);
             $this->respondWithToken($res, $username, $userData);
         } catch (Exception $e) {
-            $res->status(400)->json(['error' => $e->getMessage()]);
+            $res->status(400)->json(['error' => 'Sign up failed', 'message' => $e->getMessage()]);
         }
     }
 
