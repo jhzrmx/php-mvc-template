@@ -271,6 +271,43 @@ class Route {
     }
 
     /**
+     * Add CORS headers for allowed origins.
+     *
+     * @param array $allowedOrigins The allowed origins for CORS (default: ['*']).
+     * @return void
+     */
+    public static function addCORSUrl($allowedOrigins = ['*']) {
+        if (in_array('*', $allowedOrigins)) {
+            header('Access-Control-Allow-Origin: *');
+        } else {
+            $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+            if (in_array($origin, $allowedOrigins)) {
+                header("Access-Control-Allow-Origin: $origin");
+            }
+        }
+    }
+
+    /**
+     * Add CORS methods for allowed HTTP methods.
+     *
+     * @param array $methods The allowed HTTP methods for CORS (default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']).
+     * @return void
+     */
+    public static function addCORSMethods($methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+        header('Access-Control-Allow-Methods: ' . implode(', ', $methods));
+    }
+
+    /**
+     * Add CORS headers for allowed headers.
+     *
+     * @param array $headers The allowed headers for CORS (default: ['Content-Type', 'Authorization']).
+     * @return void
+     */
+    public static function addCORSHeaders($headers = ['Content-Type', 'Authorization']) {
+        header('Access-Control-Allow-Headers: ' . implode(', ', $headers));
+    }
+
+    /**
      * Get the root directory.
      *
      * @return string
