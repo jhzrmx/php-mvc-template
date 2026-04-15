@@ -56,6 +56,12 @@ Notes:
 php -S localhost:8000
 ```
 
+Or the CLI runner:
+
+```bash
+php mvc serve
+```
+
 On Windows, you can also run:
 
 ```bat
@@ -81,6 +87,7 @@ If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is
 ├─ middleware/           # Route middleware (auth, authRedirect)
 ├─ views/                # Static HTML pages or dynamic PHP pages
 ├─ libs/                 # Router, JWT, DotEnv, Auth, RedBeanPHP
+├─ mvc                   # CLI Runner
 ├─ index.php             # App bootstrap
 ├─ .env.example          # Environment template
 ├─ .htaccess             # Apache rewrite to index.php
