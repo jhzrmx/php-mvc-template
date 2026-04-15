@@ -727,6 +727,49 @@ class Route {
     }
 
     /**
+     * Register Laravel-style resource routes.
+     *
+     * Example:
+     * Route::resource('users', [UserController::class]);
+     * Route::resource('posts', PostController::class);
+     *
+     * Generates:
+     * GET       /users             -> index
+     * GET       /users/create      -> create
+     * POST      /users             -> store
+     * GET       /users/:id         -> show
+     * GET       /users/:id/edit    -> edit
+     * PUT       /users/:id         -> update
+     * PATCH     /users/:id         -> update
+     * DELETE    /users/:id         -> destroy
+     * 
+     * @param string $name The base name for the resource.
+     * @param string|array $controller The controller class or [class, method] to handle the resource routes.
+     * @param array $middlewares The middlewares to run for the resource routes.
+     * @return void
+     */
+    public static function resource($name, $controller, $middlewares = []) {
+        // Accept:
+        // PostController::class
+        // [PostController::class]
+        // 'PostController'
+
+        if (is_array($controller)) {
+            $controller = $controller[0];
+        }
+        $base = '/' . trim($name, '/');
+
+        self::get($base, [$controller, 'index'], $middlewares);
+        self::get($base . '/create', [$controller, 'create'], $middlewares);
+        self::post($base, [$controller, 'store'], $middlewares);
+        self::get($base . '/:id', [$controller, 'show'], $middlewares);
+        self::get($base . '/:id/edit', [$controller, 'edit'], $middlewares);
+        self::put($base . '/:id', [$controller, 'update'], $middlewares);
+        self::patch($base . '/:id', [$controller, 'update'], $middlewares);
+        self::delete($base . '/:id', [$controller, 'destroy'], $middlewares);
+    }
+
+    /**
      * Load the web and/or api routes.
      *
      * @return void
