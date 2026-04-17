@@ -139,6 +139,24 @@ class Response {
         header("Location: $url");
         exit();
     }
+
+    /**
+     * Render Blade view
+     *
+     * @param string $view
+     * @param array $data
+     * @return void
+     */
+    public function view($view, array $data = []) {
+        if (!Route::bladeEnabled()) {
+            throw new Exception("Blade engine is not enabled.");
+        }
+
+        $vars = array_merge($this->viewData, $data);
+
+        echo Route::blade()->render($view, $vars);
+        exit();
+    }
 }
 
 class Route {
@@ -214,6 +232,18 @@ class Route {
      * @var string
      */
     private static $middlewaresDir = 'middleware';
+    /**
+     * Whether the Blade templating engine is enabled.
+     *
+     * @var bool
+     */
+    private static $bladeEnabled = false;
+    /**
+     * The instance of the Blade templating engine.
+     *
+     * @var MiniBlade
+     */
+    private static $bladeInstance;
 
     /**
      * Initialize the router.
@@ -248,6 +278,22 @@ class Route {
      */
     public static function response() {
         return self::$response;
+    }
+
+    /**
+     * Check if Blade is enabled
+     * @return bool
+     */
+    public static function bladeEnabled() {
+        return self::$bladeEnabled;
+    }
+
+    /**
+     * Get the Blade instance
+     * @return MiniBlade
+     */
+    public static function blade() {
+        return self::$bladeInstance;
     }
 
     /**
@@ -334,6 +380,24 @@ class Route {
      */
     public static function setRoutesDir($dir) {
         self::$routesDir = rtrim($dir, '/');
+    }
+
+    /**
+     * Enable Blade templating engine
+     *
+     * @param string $views
+     * @param string $cache
+     * @return void
+     */
+    public static function enableBlade($views = 'views', $cache = 'cache') {
+        require_once self::rootDir() . '/MiniBlade.php';
+
+        self::$bladeInstance = new MiniBlade(
+            self::rootDir() . '/' . trim($views, '/'),
+            self::rootDir() . '/' . trim($cache, '/')
+        );
+
+        self::$bladeEnabled = true;
     }
 
     /**
