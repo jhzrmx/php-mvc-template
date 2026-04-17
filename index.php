@@ -12,6 +12,7 @@ try {
     Auth::init(new JWT($jwtSecret));
 
     Route::init();
+    Route::enableBlade();
     Route::loadModels();
     Route::loadMiddlewares();
     Route::loadRoutes();

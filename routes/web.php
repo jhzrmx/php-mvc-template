@@ -10,6 +10,11 @@ Route::get('/dashboard-no-js', function(Response $res) {
     $res->status(200)->pass(['user' => $user])->file('views/dashboard-no-js.php');
 }, ['authRedirect']);
 
+Route::get('/example', function(Response $res) {
+    $user = Auth::user();
+    $res->view('example');
+});
+
 Route::post('/logout', function(Request $req, Response $res) {
     Auth::clear();
     $res->redirect('/login');

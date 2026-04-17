@@ -390,10 +390,10 @@ class Route {
      * @return void
      */
     public static function enableBlade($views = 'views', $cache = 'cache') {
-        if (!file_exists('MiniBlade.php')) {
-            throw new Exception("MiniBlade.php not found. Please make sure it exists in the same directory as Router.php.");
+        if (!file_exists(self::rootDir() . '/libs/MiniBlade.php')) {
+            throw new Exception("MiniBlade.php not found. Please make sure it exists in ". self::rootDir() . '/libs/');
         }
-        require_once 'MiniBlade.php';
+        require_once self::rootDir() . '/libs/MiniBlade.php';
 
         self::$bladeInstance = new MiniBlade(
             self::rootDir() . '/' . trim($views, '/'),
