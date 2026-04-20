@@ -19,22 +19,40 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 
 ## Quick start
 
-1. **Clone**
+### Step 1: Clone
 
 ```bash
 git clone https://github.com/jhzrmx/php-mvc-template
 cd php-mvc-template
 ```
 
-2. **Create your environment file**
+### Step 2: Setup (Choose one approach)
 
-Run the command:
+#### Option A: Interactive Setup (Recommended)
+
+Run the interactive setup command to create your `.env` file and optionally set up a database:
+
+```bash
+php mvc init
+```
+
+This will guide you through:
+
+- Creating a `.env` file from `.env.example`
+- Choosing between SQLite or MySQL
+- Optionally generating database tables
+
+#### Option B: Manual Setup
+
+1. **Create your environment file**
 
 ```bash
 cp .env.example .env
 ```
 
-Adjust the environment variables:
+2. **Adjust the environment variables**
+
+Edit `.env` and configure:
 
 ```env
 JWT_SECRET=your-super-secret-key-at-least-32-chars-long
@@ -50,15 +68,7 @@ Notes:
 - `JWT_SECRET` is **required** and must be **at least 32 characters** (enforced in `libs/JWT.php`).
 - `DB_*` is used by RedBeanPHP via `R::setup(...)` in `index.php`.
 
-3. **Initialize the project** (optional, interactive setup)
-
-```bash
-php mvc init
-```
-
-This will guide you through creating a `.env` file and optionally setting up a SQLite database.
-
-4. **Set up database** (if not done via `init`)
+3. **Set up database** (if needed)
 
 For SQLite:
 
@@ -72,7 +82,7 @@ Or with custom database name:
 php mvc setup:sqlite --dbname myapp.db
 ```
 
-5. **Run the app**
+### Step 3: Run the app
 
 ### Option A: Built-in PHP server (fastest)
 
