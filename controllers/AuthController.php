@@ -13,16 +13,16 @@ class AuthController {
         $password = $body['password'] ?? '';
 
         if ($username === '' || $password === '') {
-            $res->status(400)->json(['error' => 'Username and password required']);
+            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
         }
 
         try {
             $userBean = User::findByUsername($username);
             if (!$userBean) {
-                $res->status(401)->json(['error' => 'User not found']);
+                $res->status(401)->json(['error' => 'User not found', 'message' => 'User with username ' . $username . ' does not exist']);
             }
             if (!User::verifyPassword($userBean, $password)) {
-                $res->status(401)->json(['error' => 'Invalid credentials']);
+                $res->status(401)->json(['error' => 'Invalid credentials', 'message' => 'Invalid username or password']);
             }
 
             $userData = User::toArray($userBean);
@@ -59,10 +59,10 @@ class AuthController {
         $email = isset($body['email']) ? trim($body['email']) : null;
 
         if ($username === '' || $password === '') {
-            $res->status(400)->json(['error' => 'Username and password required']);
+            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
         }
         if (strlen($password) < 6) {
-            $res->status(400)->json(['error' => 'Password must be at least 6 characters']);
+            $res->status(400)->json(['error' => 'Password too short', 'message' => 'Password must be at least 6 characters']);
         }
 
         try {

@@ -10,7 +10,7 @@ class UserController {
     public function show(Request $req, Response $res, string $id) {
         $user = User::find($id);
         if (!$user) {
-            $res->status(404)->json(['error' => 'User not found']);
+            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
         }
         $res->status(200)->json($user);
     }
@@ -22,10 +22,10 @@ class UserController {
         $email = isset($data['email']) ? trim($data['email']) : null;
 
         if ($username === '' || $password === '') {
-            $res->status(400)->json(['error' => 'Username and password required']);
+            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
         }
         if (strlen($password) < 6) {
-            $res->status(400)->json(['error' => 'Password must be at least 6 characters']);
+            $res->status(400)->json(['error' => 'Password too short', 'message' => 'Password must be at least 6 characters']);
         }
 
         try {
@@ -33,7 +33,7 @@ class UserController {
             $user = User::toArray($bean);
             $res->status(201)->json($user);
         } catch (Exception $e) {
-            $res->status(400)->json(['error' => $e->getMessage()]);
+            $res->status(400)->json(['error' => 'Sign up failed', 'message' => $e->getMessage()]);
         }
     }
 
@@ -41,7 +41,7 @@ class UserController {
         $data = is_array($req->body) ? $req->body : [];
         $bean = User::updateById($id, $data);
         if (!$bean) {
-            $res->status(404)->json(['error' => 'User not found']);
+            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
         }
         $res->status(200)->json(User::toArray($bean));
     }
@@ -50,14 +50,14 @@ class UserController {
         $data = is_array($req->body) ? $req->body : [];
         $bean = User::updateById($id, $data);
         if (!$bean) {
-            $res->status(404)->json(['error' => 'User not found']);
+            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
         }
         $res->status(200)->json(User::toArray($bean));
     }
 
     public function destroy(Request $req, Response $res, string $id) {
         if (!User::deleteById($id)) {
-            $res->status(404)->json(['error' => 'User not found']);
+            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
         }
         $res->status(200)->json(['message' => 'User deleted']);
     }

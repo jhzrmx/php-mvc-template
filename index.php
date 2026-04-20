@@ -29,7 +29,7 @@ try {
     Route::add404('views/404.html');
 } catch (Throwable $e) {
     if (isProduction()) {
-        Route::response()->status(500)->json(['error' => 'Internal Server Error']);
+        Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => 'An unexpected error occurred on the server.']);
     } else {
         Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()]);
     }
