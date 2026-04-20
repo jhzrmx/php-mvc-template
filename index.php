@@ -1,11 +1,17 @@
 <?php
 
+function isProduction() {
+    return !empty($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'production';
+}
+
 try {
     require_once 'libs/index.php';
 
     DotEnv::loadFromFile();
 
     R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
+
+    if (isProduction()) R::freeze(true);
     
     $jwtSecret = $_ENV['JWT_SECRET'] ?? null;
     
@@ -18,7 +24,7 @@ try {
 
     Route::add404('views/404.html');
 } catch (Throwable $e) {
-    if (!empty($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'production') {
+    if (isProduction()) {
         Route::response()->status(500)->json(['error' => 'Internal Server Error']);
     } else {
         Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()]);
