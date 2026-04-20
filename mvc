@@ -94,38 +94,37 @@ function init() {
             $dbname = 'redbean.db';
         }
         
+        if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
+            $dbname .= '.db';
+        }
+        
         // Convert to proper argv-style array
         $sqliteArgs = [
             '--dbname=' . $dbname,
             '-d', $dbname
         ];
         handleSetupSqliteCommand($sqliteArgs);
+    } else {
+        echo "Skipping SQLite setup.\n";
+        echo "Using MySQL as default database.\n";
     }
     
     echo "Creating .env file from .env.example...\n";
     if (file_exists('.env.example')) {
         copy('.env.example', '.env');
+        if ($useSqlite === 'y') {
+            $envContent = file_get_contents('.env');
+            // replace DB_DSN line with SQLite configuration
+            $envContent = preg_replace('/^DB_DSN=.*$/m', "DB_DSN=sqlite:./data/{$dbname}", $envContent);
+            file_put_contents('.env', $envContent);
+        } else {
+            // For MySQL, we replace DB_DSN with a default MySQL configuration
+            $envContent = file_get_contents('.env');
+            $envContent = preg_replace('/^DB_DSN=.*$/m', "DB_DSN=mysql:host=127.0.0.1;dbname=mvc_db", $envContent);
+            file_put_contents('.env', $envContent);
+        }
         echo ".env file created successfully!\n";
-    } else {
-        echo "Warning: .env.example not found. Creating default .env file...\n";
-        createDefaultEnv();
     }
-}
-
-function createDefaultEnv() {
-    $defaultEnv = <<<ENV
-APP_ENV=development
-
-JWT_SECRET=your-super-secret-key-at-least-32-chars-long
-
-JWT_EXPIRES_IN=3600
-
-DB_DSN=sqlite:./data/redbean.db
-DB_USER=
-DB_PASS=
-
-ENV;
-    file_put_contents('.env', $defaultEnv);
 }
 
 function handleServeCommand($args) {
