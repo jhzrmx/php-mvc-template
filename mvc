@@ -23,7 +23,7 @@ switch ($command) {
         showHelp();
         break;
     case 'init':
-        init();
+        handleInitCommand();
         break;
     default:
         echo "Unknown command: {$command}\n";
@@ -63,121 +63,120 @@ Examples:
 HELP;
 }
 
-function init() {
-    echo "Initializing project...\n";
-    
-    // Check if .env exists and ask for recreation
-    if (file_exists('.env')) {
-        echo ".env file already exists. Recreate? (y/n): ";
-        $handle = fopen("php://stdin", "r");
-        $line = trim(fgets($handle));
-        fclose($handle);
-        
-        if ($line !== 'y') {
-            echo "Skipping .env file creation.\n";
-            return;
-        }
+/**
+ * Read user input from stdin
+ * 
+ * @param string $prompt The prompt to display
+ * @return string The trimmed user input
+ */
+function readStdin($prompt = '') {
+    if ($prompt) {
+        echo $prompt;
+    }
+    $handle = fopen("php://stdin", "r");
+    $line = trim(fgets($handle));
+    fclose($handle);
+    return $line;
+}
+
+/**
+ * Update or set a variable in the .env file
+ * 
+ * @param string $key The variable name
+ * @param string $value The variable value
+ * @param string $envFile Path to .env file
+ */
+function updateEnvVariable($key, $value, $envFile = '.env') {
+    if (!file_exists($envFile)) {
+        file_put_contents($envFile, "{$key}={$value}\n");
+        return;
     }
     
-    echo "Use SQLite? (y/n): ";
-    $handle = fopen("php://stdin", "r");
-    $useSqlite = trim(fgets($handle));
-    fclose($handle);
+    $content = file_get_contents($envFile);
+    $pattern = "/^{$key}=.*$/m";
     
-    if ($useSqlite === 'y') {
-        echo "Enter SQLite database name (default: redbean.db): ";
-        $handle = fopen("php://stdin", "r");
-        $dbname = trim(fgets($handle));
-        fclose($handle);
-        
-        if (empty($dbname)) {
-            $dbname = 'redbean.db';
-        }
-        
-        if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
-            $dbname .= '.db';
-        }
-        
-        // Convert to proper argv-style array
-        $sqliteArgs = [
-            '--dbname=' . $dbname,
-            '-d', $dbname
-        ];
-        handleSetupSqliteCommand($sqliteArgs);
+    if (preg_match($pattern, $content)) {
+        $content = preg_replace($pattern, "{$key}={$value}", $content);
     } else {
-        echo "Skipping SQLite setup.\n";
-        echo "Using MySQL as default database.\n";
+        $content .= "{$key}={$value}\n";
+    }
+    
+    file_put_contents($envFile, $content);
+}
+
+/**
+ * Create .env file from .env.example
+ */
+function createEnvFile() {
+    if (file_exists('.env')) {
+        $response = readStdin(".env file already exists. Recreate? (y/n): ");
+        if ($response !== 'y') {
+            echo "Skipping .env file creation.\n";
+            return false;
+        }
     }
     
     echo "Creating .env file from .env.example...\n";
     if (file_exists('.env.example')) {
         copy('.env.example', '.env');
-        if ($useSqlite === 'y') {
-            $envContent = file_get_contents('.env');
-            // replace DB_DSN line with SQLite configuration
-            $envContent = preg_replace('/^DB_DSN=.*$/m', "DB_DSN=sqlite:./data/{$dbname}", $envContent);
-            file_put_contents('.env', $envContent);
-        } else {
-            // For MySQL, we replace DB_DSN with a default MySQL configuration
-            $envContent = file_get_contents('.env');
-            $envContent = preg_replace('/^DB_DSN=.*$/m', "DB_DSN=mysql:host=127.0.0.1;dbname=mvc_db", $envContent);
-            file_put_contents('.env', $envContent);
-        }
         echo ".env file created successfully!\n";
+        return true;
     }
+    
+    echo "Warning: .env.example not found. Creating empty .env file.\n";
+    touch('.env');
+    return true;
 }
 
-function handleServeCommand($args) {
-    $port = getOptionValue($args, 'port', 'p') ?? '8000';
-    $host = getOptionValue($args, 'host', 'H') ?? 'localhost';
-    
-    echo "Starting PHP development server...\n";
-    echo "Server running at http://{$host}:{$port}/\n";
-    echo "Document root: " . getcwd() . "\n";
-    echo "Press Ctrl+C to stop.\n\n";
-    
-    // Build the command
-    $cmd = sprintf(
-        'php -S %s:%s',
-        escapeshellarg($host),
-        escapeshellarg($port)
-    );
-    
-    passthru($cmd);
-}
-
-function handleSetupSqliteCommand($args) {
-    $dbname = getOptionValue($args, 'dbname', 'd') ?? 'redbean.db';
+/**
+ * Setup SQLite database
+ * 
+ * @param string $dbname Database name
+ * @param bool $silent Skip confirmation prompts
+ */
+function setupSqliteDatabase($dbname, $silent = false) {
     $dbPath = __DIR__ . '/data/' . $dbname;
 
     if (!is_dir(__DIR__ . '/data')) {
         mkdir(__DIR__ . '/data', 0755, true);
-        echo "Created data directory\n";
+        if (!$silent) {
+            echo "Created data directory\n";
+        }
     }
     
-    echo "Setting up SQLite database at {$dbPath}...\n";
+    if (!$silent) {
+        echo "Setting up SQLite database at {$dbPath}...\n";
+    }
 
     if (file_exists($dbPath)) {
-        echo "Database file already exists. Overwrite? (y/n): ";
-        $handle = fopen("php://stdin", "r");
-        $line = trim(fgets($handle));
-        fclose($handle);
-        
-        if ($line !== 'y') {
-            echo "Skipping database setup.\n";
-            return;
+        if (!$silent) {
+            $response = readStdin("Database file already exists. Overwrite? (y/n): ");
+            if ($response !== 'y') {
+                echo "Skipping database setup.\n";
+                return false;
+            }
         }
         unlink($dbPath);
-        echo "Existing database removed.\n";
+        if (!$silent) {
+            echo "Existing database removed.\n";
+        }
     }
 
     touch($dbPath);
-    echo "✓ Database file created at {$dbPath}\n";
+    if (!$silent) {
+        echo "✓ Database file created at {$dbPath}\n";
+    }
 
-    createInitialTables($dbPath, $dbname);
+    createInitialTables($dbPath);
+    return true;
 }
 
-function createInitialTables($dbPath, $dbname) {
+/**
+ * Create initial database tables (migrations table)
+ * 
+ * @param string $dbPath Path to the SQLite database file
+ */
+function createInitialTables($dbPath) {
     try {
         $pdo = new PDO("sqlite:{$dbPath}");
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -190,13 +189,20 @@ function createInitialTables($dbPath, $dbname) {
                 executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ");
-        
-        echo "✓ Initial tables created successfully\n";
     } catch (PDOException $e) {
         echo "Warning: Could not create initial tables: " . $e->getMessage() . "\n";
     }
 }
 
+/**
+ * Get option value from command arguments
+ * Supports formats: --long=value, --long value, -s value
+ * 
+ * @param array $args The command arguments
+ * @param string $longName The long option name
+ * @param string|null $shortName The short option name
+ * @return string|null The option value or null if not found
+ */
 function getOptionValue($args, $longName, $shortName = null) {
     // Handle --long=value format
     $longPattern = "--{$longName}=";
@@ -223,4 +229,64 @@ function getOptionValue($args, $longName, $shortName = null) {
     }
     
     return null;
+}
+
+function handleServeCommand($args) {
+    $port = getOptionValue($args, 'port', 'p') ?? '8000';
+    $host = getOptionValue($args, 'host', 'H') ?? 'localhost';
+    
+    echo "Starting PHP development server...\n";
+    echo "Server running at http://{$host}:{$port}/\n";
+    echo "Document root: " . getcwd() . "\n";
+    echo "Press Ctrl+C to stop.\n\n";
+    
+    // Build the command
+    $cmd = sprintf(
+        'php -S %s:%s',
+        escapeshellarg($host),
+        escapeshellarg($port)
+    );
+    
+    passthru($cmd);
+}
+
+function handleSetupSqliteCommand($args) {
+    $dbname = getOptionValue($args, 'dbname', 'd') ?? 'redbean.db';
+    
+    // Ensure .db extension if not present
+    if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
+        $dbname .= '.db';
+    }
+    
+    if (setupSqliteDatabase($dbname, false)) {
+        // Update .env with the new DSN
+        updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
+        echo "✓ Updated .env file with SQLite DSN\n";
+    }
+}
+
+function handleInitCommand() {
+    echo "Initializing project...\n";
+    
+    createEnvFile();
+    
+    $useSqlite = readStdin("Use SQLite? (y/n): ");
+    
+    if ($useSqlite === 'y') {
+        $dbname = readStdin("Enter SQLite database name (default: redbean.db): ");
+        if (empty($dbname)) {
+            $dbname = 'redbean.db';
+        }
+        if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
+            $dbname .= '.db';
+        }
+        
+        // Setup SQLite database and update .env
+        setupSqliteDatabase($dbname, true);
+        updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
+        echo ".env file updated with SQLite DSN\n";
+    } else {
+        echo "Using MySQL as default database.\n";
+        updateEnvVariable('DB_DSN', "mysql:host=127.0.0.1;dbname=mvc_db");
+    }
 }
