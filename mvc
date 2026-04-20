@@ -14,13 +14,16 @@ switch ($command) {
     case 'serve':
         handleServeCommand($args);
         break;
+    case 'setup:sqlite':
+        handleSetupSqliteCommand($args);
+        break;
     case 'help':
     case '--help':
     case '-h':
         showHelp();
         break;
     case 'init':
-        init();
+        handleInitCommand();
         break;
     default:
         echo "Unknown command: {$command}\n";
@@ -38,35 +41,194 @@ Usage:
 Commands:
   init                Initialize the project (create .env file)
   serve               Start the PHP development server
+  setup:sqlite        Set up a SQLite database
   help                Show this help message
 
 Serve Command Options:
   --port, -p PORT     Port to run the server on (default: 8000)
   --host, -H HOST     Host address (default: localhost)
 
+Setup:Sqlite Command Options:
+  --dbname, -d DBNAME Database name (default: redbean.db)
+
+
 Examples:
   php mvc serve
   php mvc serve --port 8080
   php mvc serve -p 3000
   php mvc serve --host 0.0.0.0 --port 8888
+  php mvc setup:sqlite
+  php mvc setup:sqlite --dbname mydatabase.db
 
 HELP;
 }
 
-function init() {
-    echo "Initializing project...\n";
+/**
+ * Read user input from stdin
+ * 
+ * @param string $prompt The prompt to display
+ * @return string The trimmed user input
+ */
+function readStdin($prompt = '') {
+    if ($prompt) {
+        echo $prompt;
+    }
+    $handle = fopen("php://stdin", "r");
+    $line = trim(fgets($handle));
+    fclose($handle);
+    return $line;
+}
+
+/**
+ * Update or set a variable in the .env file
+ * 
+ * @param string $key The variable name
+ * @param string $value The variable value
+ * @param string $envFile Path to .env file
+ */
+function updateEnvVariable($key, $value, $envFile = '.env') {
+    if (!file_exists($envFile)) {
+        file_put_contents($envFile, "{$key}={$value}\n");
+        return;
+    }
+    
+    $content = file_get_contents($envFile);
+    $pattern = "/^{$key}=.*$/m";
+    
+    if (preg_match($pattern, $content)) {
+        $content = preg_replace($pattern, "{$key}={$value}", $content);
+    } else {
+        $content .= "{$key}={$value}\n";
+    }
+    
+    file_put_contents($envFile, $content);
+}
+
+/**
+ * Create .env file from .env.example
+ */
+function createEnvFile() {
     if (file_exists('.env')) {
-        echo ".env file already exists. Recreate? (y/n): ";
-        $handle = fopen("php://stdin", "r");
-        $line = fgets($handle);
-        fclose($handle);
-        if (trim($line) !== 'y') {
+        $response = readStdin(".env file already exists. Recreate? (y/n): ");
+        if ($response !== 'y') {
             echo "Skipping .env file creation.\n";
-            return;
+            return false;
         }
     }
+    
     echo "Creating .env file from .env.example...\n";
-    passthru('cp .env.example .env');
+    if (file_exists('.env.example')) {
+        copy('.env.example', '.env');
+        echo ".env file created successfully!\n";
+        return true;
+    }
+    
+    echo "Warning: .env.example not found. Creating empty .env file.\n";
+    touch('.env');
+    return true;
+}
+
+/**
+ * Setup SQLite database
+ * 
+ * @param string $dbname Database name
+ * @param bool $silent Skip confirmation prompts
+ */
+function setupSqliteDatabase($dbname, $silent = false) {
+    $dbPath = __DIR__ . '/data/' . $dbname;
+
+    if (!is_dir(__DIR__ . '/data')) {
+        mkdir(__DIR__ . '/data', 0755, true);
+        if (!$silent) {
+            echo "Created data directory\n";
+        }
+    }
+    
+    if (!$silent) {
+        echo "Setting up SQLite database at {$dbPath}...\n";
+    }
+
+    if (file_exists($dbPath)) {
+        if (!$silent) {
+            $response = readStdin("Database file already exists. Overwrite? (y/n): ");
+            if ($response !== 'y') {
+                echo "Skipping database setup.\n";
+                return false;
+            }
+        }
+        unlink($dbPath);
+        if (!$silent) {
+            echo "Existing database removed.\n";
+        }
+    }
+
+    touch($dbPath);
+    if (!$silent) {
+        echo "✓ Database file created at {$dbPath}\n";
+    }
+
+    createInitialTables($dbPath);
+    return true;
+}
+
+/**
+ * Create initial database tables (migrations table)
+ * 
+ * @param string $dbPath Path to the SQLite database file
+ */
+function createInitialTables($dbPath) {
+    try {
+        $pdo = new PDO("sqlite:{$dbPath}");
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // Create migrations table
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+    } catch (PDOException $e) {
+        echo "Warning: Could not create initial tables: " . $e->getMessage() . "\n";
+    }
+}
+
+/**
+ * Get option value from command arguments
+ * Supports formats: --long=value, --long value, -s value
+ * 
+ * @param array $args The command arguments
+ * @param string $longName The long option name
+ * @param string|null $shortName The short option name
+ * @return string|null The option value or null if not found
+ */
+function getOptionValue($args, $longName, $shortName = null) {
+    // Handle --long=value format
+    $longPattern = "--{$longName}=";
+    foreach ($args as $arg) {
+        if (strpos($arg, $longPattern) === 0) {
+            return substr($arg, strlen($longPattern));
+        }
+    }
+    
+    // Handle --long value format
+    for ($i = 0; $i < count($args); $i++) {
+        if ($args[$i] === "--{$longName}" && isset($args[$i + 1])) {
+            return $args[$i + 1];
+        }
+    }
+    
+    // Handle -s value format (short option)
+    if ($shortName) {
+        for ($i = 0; $i < count($args); $i++) {
+            if ($args[$i] === "-{$shortName}" && isset($args[$i + 1])) {
+                return $args[$i + 1];
+            }
+        }
+    }
+    
+    return null;
 }
 
 function handleServeCommand($args) {
@@ -85,30 +247,46 @@ function handleServeCommand($args) {
         escapeshellarg($port)
     );
     
-    // Execute the server
     passthru($cmd);
 }
 
-function getOptionValue($args, $longName, $shortName = null) {
-    $longPattern = "--{$longName}=";
+function handleSetupSqliteCommand($args) {
+    $dbname = getOptionValue($args, 'dbname', 'd') ?? 'redbean.db';
     
-    foreach ($args as $arg) {
-        if (strpos($arg, $longPattern) === 0) {
-            return substr($arg, strlen($longPattern));
+    // Ensure .db extension if not present
+    if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
+        $dbname .= '.db';
+    }
+    
+    if (setupSqliteDatabase($dbname, false)) {
+        // Update .env with the new DSN
+        updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
+        echo "✓ Updated .env file with SQLite DSN\n";
+    }
+}
+
+function handleInitCommand() {
+    echo "Initializing project...\n";
+    
+    createEnvFile();
+    
+    $useSqlite = readStdin("Use SQLite? (y/n): ");
+    
+    if ($useSqlite === 'y') {
+        $dbname = readStdin("Enter SQLite database name (default: redbean.db): ");
+        if (empty($dbname)) {
+            $dbname = 'redbean.db';
+        }
+        if (pathinfo($dbname, PATHINFO_EXTENSION) !== 'db') {
+            $dbname .= '.db';
         }
         
-        if ($shortName && $arg === "-{$shortName}" && next($args)) {
-            return current($args);
-        }
+        // Setup SQLite database and update .env
+        setupSqliteDatabase($dbname, true);
+        updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
+        echo ".env file updated with SQLite DSN\n";
+    } else {
+        echo "Using MySQL as default database.\n";
+        updateEnvVariable('DB_DSN', "mysql:host=127.0.0.1;dbname=mvc_db");
     }
-    
-    // Check for space-separated short option
-    reset($args);
-    for ($i = 0; $i < count($args); $i++) {
-        if ($shortName && $args[$i] === "-{$shortName}" && isset($args[$i + 1])) {
-            return $args[$i + 1];
-        }
-    }
-    
-    return null;
 }

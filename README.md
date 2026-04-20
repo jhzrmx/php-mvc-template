@@ -19,16 +19,17 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 
 ## Quick start
 
-1) **Clone**
+1. **Clone**
 
 ```bash
 git clone https://github.com/jhzrmx/php-mvc-template
 cd php-mvc-template
 ```
 
-2) **Create your environment file**
+2. **Create your environment file**
 
 Run the command:
+
 ```bash
 cp .env.example .env
 ```
@@ -45,21 +46,44 @@ DB_PASS=secret
 ```
 
 Notes:
+
 - `JWT_SECRET` is **required** and must be **at least 32 characters** (enforced in `libs/JWT.php`).
 - `DB_*` is used by RedBeanPHP via `R::setup(...)` in `index.php`.
 
-3) **Run the app**
+3. **Initialize the project** (optional, interactive setup)
+
+```bash
+php mvc init
+```
+
+This will guide you through creating a `.env` file and optionally setting up a SQLite database.
+
+4. **Set up database** (if not done via `init`)
+
+For SQLite:
+
+```bash
+php mvc setup:sqlite
+```
+
+Or with custom database name:
+
+```bash
+php mvc setup:sqlite --dbname myapp.db
+```
+
+5. **Run the app**
 
 ### Option A: Built-in PHP server (fastest)
 
 ```bash
-php -S localhost:8000
+php mvc serve
 ```
 
-Or the CLI runner:
+Or with custom port and host:
 
 ```bash
-php mvc serve
+php mvc serve --port 8080 --host 0.0.0.0
 ```
 
 On Windows, you can also run:
@@ -68,7 +92,14 @@ On Windows, you can also run:
 serve.cmd
 ```
 
+Or use the native PHP server directly:
+
+```bash
+php -S localhost:8000
+```
+
 Then open:
+
 - `http://localhost:8000/login`
 - `http://localhost:8000/signup`
 - `http://localhost:8000/dashboard`
@@ -142,6 +173,7 @@ Route::group('/api/users', 'user.routes', ['auth']);
 Middleware is loaded from `middleware/*.php` at boot (via `Route::loadMiddlewares()`), and referenced by the filename without the `.php` extension (for example, `middleware/auth.php` is middleware name `auth`).
 
 You can attach middleware in two places:
+
 - On a single route: pass an array of middleware names as the last argument, e.g. `['authRedirect']`.
 - On a group: pass middleware as the 3rd argument to `Route::group(...)`; all routes registered inside the group inherit the group middleware.
 
@@ -154,6 +186,7 @@ Middleware parameters (optional): if you use `name:param1,param2`, the middlewar
 Controller methods can type-hint `Request` and/or `Response` and they’ll be passed automatically by the router.
 
 - **Closures / callable routes** can do the same:
+
 ```php
 Route::get('/api/dashboard', function(Request $req, Response $res) {
     $data = $req->body;
@@ -256,15 +289,15 @@ Contributions are welcome. If you’re unsure where to start, check the suggeste
 
 ### How to contribute
 
-1) Fork the repo
-2) Create a branch:
+1. Fork the repo
+2. Create a branch:
 
 ```bash
 git checkout -b feat/your-feature
 ```
 
-3) Make changes and test locally (run `php -S localhost:8000`)
-4) Open a pull request describing:
+3. Make changes and test locally (run `php -S localhost:8000`)
+4. Open a pull request describing:
    - what you changed
    - why you changed it
    - how to test
@@ -278,4 +311,3 @@ git checkout -b feat/your-feature
 ## Credits
 
 - RedBeanPHP is included under `libs/RedbeanPHP/` with license
-
