@@ -4,7 +4,7 @@
   RewriteBase /
 
   # Block access to sensitive files
-  <FilesMatch "\.(env|sql|log|ini|json|lock|bak)$">
+  <FilesMatch "\.(env|sql|db|log|ini|json|lock|bak)$">
     Require all denied
   </FilesMatch>
 
