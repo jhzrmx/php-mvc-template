@@ -9,8 +9,12 @@ try {
 
     DotEnv::loadFromFile();
 
-    R::setup($_ENV['DB_DSN']);
-
+    if (empty($_ENV['DB_USER']) && empty($_ENV['DB_PASS'])) {
+        R::setup($_ENV['DB_DSN']);
+    } else {
+        R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
+    }
+    
     if (isProduction()) R::freeze(true);
     
     $jwtSecret = $_ENV['JWT_SECRET'] ?? null;
