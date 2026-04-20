@@ -9,7 +9,7 @@ try {
 
     DotEnv::loadFromFile();
 
-    R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
+    R::setup($_ENV['DB_DSN']);
 
     if (isProduction()) R::freeze(true);
     

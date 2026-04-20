@@ -14,6 +14,9 @@ switch ($command) {
     case 'serve':
         handleServeCommand($args);
         break;
+    case 'setup:sqlite':
+        handleSetupSqliteCommand($args);
+        break;
     case 'help':
     case '--help':
     case '-h':
@@ -38,35 +41,91 @@ Usage:
 Commands:
   init                Initialize the project (create .env file)
   serve               Start the PHP development server
+  setup:sqlite        Set up a SQLite database
   help                Show this help message
 
 Serve Command Options:
   --port, -p PORT     Port to run the server on (default: 8000)
   --host, -H HOST     Host address (default: localhost)
 
+Setup:Sqlite Command Options:
+  --dbname, -d DBNAME Database name (default: redbean.db)
+
+
 Examples:
   php mvc serve
   php mvc serve --port 8080
   php mvc serve -p 3000
   php mvc serve --host 0.0.0.0 --port 8888
+  php mvc setup:sqlite
+  php mvc setup:sqlite --dbname mydatabase.db
 
 HELP;
 }
 
 function init() {
     echo "Initializing project...\n";
+    
+    // Check if .env exists and ask for recreation
     if (file_exists('.env')) {
         echo ".env file already exists. Recreate? (y/n): ";
         $handle = fopen("php://stdin", "r");
-        $line = fgets($handle);
+        $line = trim(fgets($handle));
         fclose($handle);
-        if (trim($line) !== 'y') {
+        
+        if ($line !== 'y') {
             echo "Skipping .env file creation.\n";
             return;
         }
     }
+    
+    echo "Use SQLite? (y/n): ";
+    $handle = fopen("php://stdin", "r");
+    $useSqlite = trim(fgets($handle));
+    fclose($handle);
+    
+    if ($useSqlite === 'y') {
+        echo "Enter SQLite database name (default: redbean.db): ";
+        $handle = fopen("php://stdin", "r");
+        $dbname = trim(fgets($handle));
+        fclose($handle);
+        
+        if (empty($dbname)) {
+            $dbname = 'redbean.db';
+        }
+        
+        // Convert to proper argv-style array
+        $sqliteArgs = [
+            '--dbname=' . $dbname,
+            '-d', $dbname
+        ];
+        handleSetupSqliteCommand($sqliteArgs);
+    }
+    
     echo "Creating .env file from .env.example...\n";
-    passthru('cp .env.example .env');
+    if (file_exists('.env.example')) {
+        copy('.env.example', '.env');
+        echo ".env file created successfully!\n";
+    } else {
+        echo "Warning: .env.example not found. Creating default .env file...\n";
+        createDefaultEnv();
+    }
+}
+
+function createDefaultEnv() {
+    $defaultEnv = <<<ENV
+APP_ENV=development
+
+JWT_SECRET=your-super-secret-key-at-least-32-chars-long
+
+JWT_EXPIRES_IN=3600
+
+DB_DSN=sqlite:./data/redbean.db
+DB_USER=
+DB_PASS=
+
+ENV;
+    file_put_contents('.env', $defaultEnv);
 }
 
 function handleServeCommand($args) {
@@ -85,28 +144,82 @@ function handleServeCommand($args) {
         escapeshellarg($port)
     );
     
-    // Execute the server
     passthru($cmd);
 }
 
-function getOptionValue($args, $longName, $shortName = null) {
-    $longPattern = "--{$longName}=";
+function handleSetupSqliteCommand($args) {
+    $dbname = getOptionValue($args, 'dbname', 'd') ?? 'redbean.db';
+    $dbPath = __DIR__ . '/data/' . $dbname;
+
+    if (!is_dir(__DIR__ . '/data')) {
+        mkdir(__DIR__ . '/data', 0755, true);
+        echo "Created data directory\n";
+    }
     
+    echo "Setting up SQLite database at {$dbPath}...\n";
+
+    if (file_exists($dbPath)) {
+        echo "Database file already exists. Overwrite? (y/n): ";
+        $handle = fopen("php://stdin", "r");
+        $line = trim(fgets($handle));
+        fclose($handle);
+        
+        if ($line !== 'y') {
+            echo "Skipping database setup.\n";
+            return;
+        }
+        unlink($dbPath);
+        echo "Existing database removed.\n";
+    }
+
+    touch($dbPath);
+    echo "✓ Database file created at {$dbPath}\n";
+
+    createInitialTables($dbPath, $dbname);
+}
+
+function createInitialTables($dbPath, $dbname) {
+    try {
+        $pdo = new PDO("sqlite:{$dbPath}");
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // Create migrations table
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+        
+        echo "✓ Initial tables created successfully\n";
+    } catch (PDOException $e) {
+        echo "Warning: Could not create initial tables: " . $e->getMessage() . "\n";
+    }
+}
+
+function getOptionValue($args, $longName, $shortName = null) {
+    // Handle --long=value format
+    $longPattern = "--{$longName}=";
     foreach ($args as $arg) {
         if (strpos($arg, $longPattern) === 0) {
             return substr($arg, strlen($longPattern));
         }
-        
-        if ($shortName && $arg === "-{$shortName}" && next($args)) {
-            return current($args);
+    }
+    
+    // Handle --long value format
+    for ($i = 0; $i < count($args); $i++) {
+        if ($args[$i] === "--{$longName}" && isset($args[$i + 1])) {
+            return $args[$i + 1];
         }
     }
     
-    // Check for space-separated short option
-    reset($args);
-    for ($i = 0; $i < count($args); $i++) {
-        if ($shortName && $args[$i] === "-{$shortName}" && isset($args[$i + 1])) {
-            return $args[$i + 1];
+    // Handle -s value format (short option)
+    if ($shortName) {
+        for ($i = 0; $i < count($args); $i++) {
+            if ($args[$i] === "-{$shortName}" && isset($args[$i + 1])) {
+                return $args[$i + 1];
+            }
         }
     }
     
