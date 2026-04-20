@@ -114,7 +114,9 @@ Then open:
 - `http://localhost:8000/signup`
 - `http://localhost:8000/dashboard`
 
-### Option B: Apache
+Note: Use the built-in PHP server during development. **DO NOT USE IT FOR PRODUCTION!**
+
+### Option B: Apache (recommended for production)
 
 If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is respected so all requests route through `index.php`.
 
