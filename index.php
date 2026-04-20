@@ -18,12 +18,10 @@ try {
 
     Route::add404('views/404.html');
 } catch (Throwable $e) {
-    http_response_code(500);
-    header('Content-Type: application/json');
     if (!empty($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'production') {
-        echo json_encode(['error' => 'Internal Server Error']);
+        Route::response()->status(500)->json(['error' => 'Internal Server Error']);
     } else {
-        echo json_encode(['error' => 'Internal Server Error', 'message' => $e->getMessage()]);
+        Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()]);
     }
     error_log($e->getTraceAsString());
     exit();
