@@ -76,7 +76,7 @@ For SQLite:
 php mvc setup:sqlite
 ```
 
-Or with custom database name:
+Or with custom SQLite database name:
 
 ```bash
 php mvc setup:sqlite --dbname myapp.db
@@ -114,7 +114,7 @@ Then open:
 - `http://localhost:8000/signup`
 - `http://localhost:8000/dashboard`
 
-Note: Use the built-in PHP server during development. **DO NOT USE IT FOR PRODUCTION!**
+Note: Use the built-in PHP server during development only. **DO NOT USE IT FOR PRODUCTION!**
 
 ### Option B: Apache (recommended for production)
 
