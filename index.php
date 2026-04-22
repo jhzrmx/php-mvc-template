@@ -28,11 +28,9 @@ try {
 
     Route::add404('views/404.html');
 } catch (Throwable $e) {
-    if (isProduction()) {
-        Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => 'An unexpected error occurred on the server.']);
-    } else {
-        Route::response()->status(500)->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()]);
-    }
+	http_response_code(500);
+    header('Content-Type: application/json');
+	echo json_encode(['error' => 'Internal Server Error', 'message' => isProduction() ? 'An unexpected error occurred on the server.' : $e->getMessage()]);
     error_log($e->getTraceAsString());
     exit();
 }
