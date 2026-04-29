@@ -27,6 +27,7 @@ try {
     Route::loadRoutes();
 
     Route::add404('views/404.html');
+    R::close();
 } catch (Throwable $e) {
 	http_response_code(500);
     header('Content-Type: application/json');
