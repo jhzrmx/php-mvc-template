@@ -349,9 +349,9 @@ class Route {
     /**
      * Get a route.
      *
-     * @param string $route         The route to get.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to get.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function get($route, $callback, $middlewares = []) {
@@ -363,9 +363,9 @@ class Route {
     /**
      * Post a route.
      *
-     * @param string $route        The route to post.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to post.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function post($route, $callback, $middlewares = []) {
@@ -377,9 +377,9 @@ class Route {
     /**
      * Put a route.
      *
-     * @param string $route         The route to put.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to put.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function put($route, $callback, $middlewares = []) {
@@ -391,9 +391,9 @@ class Route {
     /**
      * Patch a route.
      *
-     * @param string $route         The route to patch.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to patch.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function patch($route, $callback, $middlewares = []) {
@@ -405,9 +405,9 @@ class Route {
     /**
      * Delete a route.
      *
-     * @param string $route         The route to delete.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to delete.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function delete($route, $callback, $middlewares = []) {
@@ -419,9 +419,9 @@ class Route {
     /**
      * Any a route.
      *
-     * @param string $route         The route to any.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to any.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     public static function any($route, $callback, $middlewares = []) {
@@ -469,7 +469,7 @@ class Route {
      * Set a middleware.
      *
      * @param string $name          The name of the middleware.
-     * @param callable $callback    The callback to execute.
+     * @param callable $callback    The middleware handler.
      * @return void
      */
     public static function middleware($name, $callback) {
@@ -584,8 +584,8 @@ class Route {
     /**
      * Execute the callback.
      *
-     * @param callable $callback    The callback to execute.
-     * @param array $params         The parameters to pass to the callback.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $params                     The parameters to pass to the callback.
      * @return void
      */
     private static function execute($callback, $params) {
@@ -670,9 +670,9 @@ class Route {
     /**
      * Reroute the request.
      *
-     * @param string $route         The route to reroute.
-     * @param callable $callback    The callback to execute.
-     * @param array $middlewares    The middlewares to run.
+     * @param string $route                     The route to reroute.
+     * @param callable|string|array $callback   The route callback, controller handler, or file path.
+     * @param array $middlewares                The middlewares to run.
      * @return void
      */
     private static function reroute($route, $callback, $middlewares = []) {
@@ -728,7 +728,7 @@ class Route {
      * DELETE    /users/:id         -> destroy
      * 
      * @param string $name              The base name for the resource.
-     * @param string|array $controller  The controller class or [class, method] to handle the resource routes.
+     * @param string|array $controller  The Controller class name or [ControllerClass].
      * @param array $middlewares        The middlewares to run for the resource routes.
      * @return void
      */
