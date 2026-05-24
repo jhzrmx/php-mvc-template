@@ -75,7 +75,7 @@ class Response {
     /**
      * Send a JSON response.
      *
-     * @param array $data The data to send.
+     * @param array $data   The data to send.
      * @return void
      */
     public function json($data) {
@@ -87,8 +87,8 @@ class Response {
     /**
      * Send a text response.
      *
-     * @param string $text The text to send.
-     * @param string $contentType The content type to send.
+     * @param string $text          The text to send.
+     * @param string $contentType   The content type to send.
      * @return void
      */
     public function send($text, $contentType = 'text/plain') {
@@ -100,8 +100,8 @@ class Response {
     /**
      * Send a file response.
      *
-     * @param string $file The file to send.
-     * @param array $data Variables to extract into the file scope.
+     * @param string $file  The file to send.
+     * @param array $data   Variables to extract into the file scope.
      * @return void
      */
     public function file($file, array $data = []) {
@@ -119,7 +119,7 @@ class Response {
      * Usage:
      *   $res->pass(['user' => $user])->file('views/dashboard.php');
      *
-     * @param array $data
+     * @param array $data   The data to pass to a PHP view file
      * @return $this
      */
     public function pass(array $data) {
@@ -130,8 +130,8 @@ class Response {
     /**
      * Redirect to a URL.
      *
-     * @param string $url The URL to redirect to.
-     * @param int $statusCode The status code for the redirect (default: 302).
+     * @param string $url       The URL to redirect to.
+     * @param int $statusCode   The status code for the redirect (default: 302).
      * @return void
      */
     public function redirect($url, $statusCode = 302) {
@@ -290,7 +290,7 @@ class Route {
     /**
      * Add CORS methods for allowed HTTP methods.
      *
-     * @param array $methods The allowed HTTP methods for CORS (default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']).
+     * @param array $methods    The allowed HTTP methods for CORS (default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']).
      * @return void
      */
     public static function addCORSMethods($methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
@@ -300,7 +300,7 @@ class Route {
     /**
      * Add CORS headers for allowed headers.
      *
-     * @param array $headers The allowed headers for CORS (default: ['Content-Type', 'Authorization']).
+     * @param array $headers    The allowed headers for CORS (default: ['Content-Type', 'Authorization']).
      * @return void
      */
     public static function addCORSHeaders($headers = ['Content-Type', 'Authorization']) {
@@ -319,7 +319,7 @@ class Route {
     /**
      * Set the controller directory.
      *
-     * @param string $dir The directory to set.
+     * @param string $dir   The directory to set.
      * @return void
      */
     public static function setControllersDir($dir) {
@@ -329,7 +329,7 @@ class Route {
     /**
      * Set the route directory.
      *
-     * @param string $dir The directory to set.
+     * @param string $dir   The directory to set.
      * @return void
      */
     public static function setRoutesDir($dir) {
@@ -339,7 +339,7 @@ class Route {
     /**
      * Set the prefix for the group routes.
      *
-     * @param string $prefix The prefix to set.
+     * @param string $prefix    The prefix to set.
      * @return void
      */
     public static function prefix($prefix) {
@@ -349,9 +349,9 @@ class Route {
     /**
      * Get a route.
      *
-     * @param string $route The route to get.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to get.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function get($route, $callback, $middlewares = []) {
@@ -363,9 +363,9 @@ class Route {
     /**
      * Post a route.
      *
-     * @param string $route The route to post.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route        The route to post.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function post($route, $callback, $middlewares = []) {
@@ -377,9 +377,9 @@ class Route {
     /**
      * Put a route.
      *
-     * @param string $route The route to put.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to put.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function put($route, $callback, $middlewares = []) {
@@ -391,9 +391,9 @@ class Route {
     /**
      * Patch a route.
      *
-     * @param string $route The route to patch.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to patch.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function patch($route, $callback, $middlewares = []) {
@@ -405,9 +405,9 @@ class Route {
     /**
      * Delete a route.
      *
-     * @param string $route The route to delete.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to delete.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function delete($route, $callback, $middlewares = []) {
@@ -419,9 +419,9 @@ class Route {
     /**
      * Any a route.
      *
-     * @param string $route The route to any.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to any.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     public static function any($route, $callback, $middlewares = []) {
@@ -430,6 +430,7 @@ class Route {
 
     /**
      * Group routes under a common prefix and middleware stack.
+     * 
      * @param string $prefix			The route prefix.
      * @param callable|string $routes	Route callback or route file.
      * @param array|null $middlewares	Middlewares to apply.
@@ -459,6 +460,7 @@ class Route {
             }
             require $file;
         }
+
         self::$group_prefix = $previousPrefix;
         self::$group_middlewares = $previousMiddlewares;
     }
@@ -466,8 +468,8 @@ class Route {
     /**
      * Set a middleware.
      *
-     * @param string $name The name of the middleware.
-     * @param callable $callback The callback to execute.
+     * @param string $name          The name of the middleware.
+     * @param callable $callback    The callback to execute.
      * @return void
      */
     public static function middleware($name, $callback) {
@@ -505,7 +507,7 @@ class Route {
     /**
      * Set the models directory.
      *
-     * @param string $dir The directory to set.
+     * @param string $dir   The directory to set.
      * @return void
      */
     public static function setModelsDir($dir) {
@@ -515,7 +517,7 @@ class Route {
     /**
      * Run the middlewares.
      *
-     * @param array $middlewares The middlewares to run.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     private static function runMiddlewares($middlewares) {
@@ -537,8 +539,8 @@ class Route {
     /**
      * Run the controller.
      *
-     * @param string|array $callback The callback to run.
-     * @param array $params The parameters to pass to the controller.
+     * @param string|array $callback    The callback to run.
+     * @param array $params             The parameters to pass to the controller.
      * @return void
      */
     private static function runController($callback, $params) {
@@ -582,8 +584,8 @@ class Route {
     /**
      * Execute the callback.
      *
-     * @param callable $callback The callback to execute.
-     * @param array $params The parameters to pass to the callback.
+     * @param callable $callback    The callback to execute.
+     * @param array $params         The parameters to pass to the callback.
      * @return void
      */
     private static function execute($callback, $params) {
@@ -668,9 +670,9 @@ class Route {
     /**
      * Reroute the request.
      *
-     * @param string $route The route to reroute.
-     * @param callable $callback The callback to execute.
-     * @param array $middlewares The middlewares to run.
+     * @param string $route         The route to reroute.
+     * @param callable $callback    The callback to execute.
+     * @param array $middlewares    The middlewares to run.
      * @return void
      */
     private static function reroute($route, $callback, $middlewares = []) {
@@ -725,9 +727,9 @@ class Route {
      * PATCH     /users/:id         -> update
      * DELETE    /users/:id         -> destroy
      * 
-     * @param string $name The base name for the resource.
-     * @param string|array $controller The controller class or [class, method] to handle the resource routes.
-     * @param array $middlewares The middlewares to run for the resource routes.
+     * @param string $name              The base name for the resource.
+     * @param string|array $controller  The controller class or [class, method] to handle the resource routes.
+     * @param array $middlewares        The middlewares to run for the resource routes.
      * @return void
      */
     public static function resource($name, $controller, $middlewares = []) {
@@ -765,7 +767,7 @@ class Route {
     /**
      * Set the Single Page Application file, typically index.html from build.
      *
-     * @param string $file The file to set.
+     * @param string $file  The file to set.
      * @return void
      */
     public static function setSPA($file = 'index.html') {
@@ -783,7 +785,7 @@ class Route {
     /**
      * Add a 404 callback file.
      *
-     * @param string $file The file to set as the 404 callback.
+     * @param string $file  The file to set as the 404 callback.
      * @return void
      */
     public static function add404($file = null) {
