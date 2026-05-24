@@ -428,58 +428,42 @@ class Route {
         self::reroute($route, $callback, $middlewares);
     }
 
-    /**
-     * Group a route.
-     *
-     * @param string $prefix The prefix to set.
-     * @param callable $options The options to set.
-     * @param callable $routes The routes to set.
-     * @return void
-     */
-    public static function group($prefix, $options, $routes = null) {
-        if (is_callable($options) || is_string($options)) {
-            // Support signature:
-            //   Route::group('/prefix', 'routes.file', ['middleware1', 'middleware2']);
-            // In this case, the 3rd argument is treated as middleware, and the 2nd
-            // argument is treated as the routes file/callback.
-            if (is_array($routes)) {
-                $middlewares = $routes;
-                $routes = $options;
-                $options = ['middleware' => $middlewares];
-            } else {
-                $routes = $options;
-                $options = [];
-            }
-        }
+	/**
+	 * Group routes under a common prefix and middleware stack.
+	 *
+	 * @param string $prefix			The route prefix.
+	 * @param callable|string $routes	Route callback or route file.
+	 * @param array|null $middlewares	Middlewares to apply.
+	 * @return void
+	 */
+	public static function group($prefix, $routes, $middlewares = null) {
+		$previousPrefix = self::$group_prefix;
+		$previousMiddlewares = self::$group_middlewares;
+		self::$group_prefix .= rtrim($prefix, '/');
 
-        $prevPrefix = self::$group_prefix;
-        $prevMiddleware = self::$group_middlewares;
+		if (is_array($middlewares)) {
+			self::$group_middlewares = array_merge(
+				self::$group_middlewares,
+				$middlewares
+			);
+		}
 
-        self::$group_prefix .= rtrim($prefix, '/');
+		if (is_callable($routes)) {
+			call_user_func($routes);
+		} elseif (is_string($routes)) {
+			if (!str_contains($routes, '.php')) {
+				$routes .= '.php';
+			}
+			$file = self::rootDir() . "/" . self::$routesDir . "/$routes";
+			if (!file_exists($file)) {
+				throw new Exception("Route file not found: $routes");
+			}
+			require $file;
+		}
 
-        if (isset($options['middleware'])) {
-            self::$group_middlewares = array_merge(
-                self::$group_middlewares,
-                (array) $options['middleware']
-            );
-        }
-
-        if (is_callable($routes)) {
-            call_user_func($routes);
-        } elseif (is_string($routes)) {
-            if (!str_contains($routes, '.php')) {
-                $routes .= '.php';
-            }
-            $file = self::rootDir() . "/" . self::$routesDir . "/$routes";
-            if (!file_exists($file)) {
-                throw new Exception("Route file not found: $routes");
-            }
-            require $file;
-        }
-
-        self::$group_prefix = $prevPrefix;
-        self::$group_middlewares = $prevMiddleware;
-    }
+		self::$group_prefix = $previousPrefix;
+		self::$group_middlewares = $previousMiddlewares;
+	}
 
     /**
      * Set a middleware.
