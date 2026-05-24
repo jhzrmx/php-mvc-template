@@ -313,7 +313,18 @@ class Route {
      * @return string
      */
     private static function rootDir() {
-        return dirname($_SERVER['SCRIPT_FILENAME']);
+        return realpath(dirname($_SERVER['SCRIPT_FILENAME']));
+    }
+    
+    /**
+     * Path helper to support multiple environments
+     *
+     * @return string
+     */
+    private static function path(...$segments) {
+        return join(DIRECTORY_SEPARATOR, array_map(function ($segment) {
+            return trim($segment, '/\\');
+        }, $segments));
     }
 
     /**
@@ -323,7 +334,7 @@ class Route {
      * @return void
      */
     public static function setControllersDir($dir) {
-        self::$controllersDir = rtrim($dir, '/');
+        self::$controllersDir = rtrim($dir, '/\\');
     }
 
     /**
@@ -333,7 +344,7 @@ class Route {
      * @return void
      */
     public static function setRoutesDir($dir) {
-        self::$routesDir = rtrim($dir, '/');
+        self::$routesDir = rtrim($dir, '/\\');
     }
 
     /**
@@ -343,7 +354,7 @@ class Route {
      * @return void
      */
     public static function prefix($prefix) {
-        self::$group_prefix .= rtrim($prefix, '/');
+        self::$group_prefix = rtrim(self::$group_prefix, '/') . '/' . trim($prefix, '/\\');
     }
 
     /**
@@ -439,7 +450,7 @@ class Route {
     public static function group($prefix, $routes, $middlewares = null) {
         $previousPrefix = self::$group_prefix;
         $previousMiddlewares = self::$group_middlewares;
-        self::$group_prefix .= rtrim($prefix, '/');
+        self::$group_prefix .= rtrim($prefix, '/\\');
         
         if (is_array($middlewares)) {
             self::$group_middlewares = array_merge(
@@ -454,7 +465,7 @@ class Route {
             if (!str_contains($routes, '.php')) {
                 $routes .= '.php';
             }
-            $file = self::rootDir() . "/" . self::$routesDir . "/$routes";
+            $file = self::path(self::rootDir(), self::$routesDir, $routes);
             if (!file_exists($file)) {
                 throw new Exception("Route file not found: $routes");
             }
@@ -482,7 +493,7 @@ class Route {
      * @return void
      */
     public static function loadMiddlewares() {
-        $files = glob(self::rootDir() . "/" . self::$middlewaresDir . '/*.php');
+        $files = glob(self::path(self::rootDir(), self::$middlewaresDir) . DIRECTORY_SEPARATOR . '*.php');
         if ($files) {
             foreach ($files as $file) {
                 self::$middlewares[basename($file, '.php')] = require_once $file;
@@ -496,7 +507,7 @@ class Route {
      * @return void
      */
     public static function loadModels() {
-        $files = glob(self::$modelsDir . '/*.php');
+        $files = glob(self::path(self::rootDir(), self::$modelsDir) . DIRECTORY_SEPARATOR . '*.php');
         if ($files) {
             foreach ($files as $file) {
                 require $file;
@@ -511,7 +522,7 @@ class Route {
      * @return void
      */
     public static function setModelsDir($dir) {
-        self::$modelsDir = rtrim($dir, '/');
+        self::$modelsDir = rtrim($dir, '/\\');
     }
 
     /**
@@ -556,7 +567,7 @@ class Route {
         }
         $className = is_string($controller) ? $controller : get_class($controller);
         $shortName = basename(str_replace('\\', '/', $className));
-        $file = self::rootDir() . "/" . self::$controllersDir . "/$shortName.php";
+        $file = self::path(self::rootDir(), self::$controllersDir, "$shortName.php");
         if (file_exists($file)) {
             require_once $file;
         }
@@ -663,7 +674,14 @@ class Route {
         ) {
             self::runController($callback, $params);
         } else {
-            require self::rootDir() . '/' . $callback;
+            $file = self::path(self::rootDir(), $callback);
+            $file = realpath($file);
+
+            if (!$file || !substr($file, 0, strlen(self::rootDir())) !== self::rootDir()) {
+                throw new Exception("Invalid file path");
+            }
+
+            require $file;
         }
     }
 
@@ -683,7 +701,7 @@ class Route {
         $route = self::$group_prefix . $route;
         $full_route = self::$base_path . $route;
 
-        $request = rtrim($_SERVER['REQUEST_URI'], '/');
+        $request = rtrim($_SERVER['REQUEST_URI'], '/\\');
         $request = strtok($request, '?');
 
         $route_parts = explode('/', trim($full_route, '/'));
@@ -760,7 +778,7 @@ class Route {
      */
     public static function loadRoutes($routes = ['web', 'api']) {
         foreach ($routes as $route) {
-            include_once self::rootDir() . '/' . self::$routesDir . "/$route.php";
+            include_once self::path(self::rootDir(), self::$routesDir, "$route.php");
         }
     }
 
@@ -773,7 +791,7 @@ class Route {
     public static function setSPA($file = 'index.html') {
         if (!self::$route_matched && !self::$is404Called) {
             if ($file) {
-                require self::rootDir() . '/' . $file;
+                require self::path(self::rootDir(), $file);
             }
             exit();
         }
@@ -793,7 +811,7 @@ class Route {
             self::$is404Called = true;
             http_response_code(404);
             if ($file) {
-                require self::rootDir() . '/' . $file;
+                require self::path(self::rootDir(), $file);
             }
             exit();
         }
