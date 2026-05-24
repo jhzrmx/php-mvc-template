@@ -428,42 +428,40 @@ class Route {
         self::reroute($route, $callback, $middlewares);
     }
 
-	/**
-	 * Group routes under a common prefix and middleware stack.
-	 *
-	 * @param string $prefix			The route prefix.
-	 * @param callable|string $routes	Route callback or route file.
-	 * @param array|null $middlewares	Middlewares to apply.
-	 * @return void
-	 */
-	public static function group($prefix, $routes, $middlewares = null) {
-		$previousPrefix = self::$group_prefix;
-		$previousMiddlewares = self::$group_middlewares;
-		self::$group_prefix .= rtrim($prefix, '/');
-
-		if (is_array($middlewares)) {
-			self::$group_middlewares = array_merge(
-				self::$group_middlewares,
-				$middlewares
-			);
-		}
-
-		if (is_callable($routes)) {
-			call_user_func($routes);
-		} elseif (is_string($routes)) {
-			if (!str_contains($routes, '.php')) {
-				$routes .= '.php';
-			}
-			$file = self::rootDir() . "/" . self::$routesDir . "/$routes";
-			if (!file_exists($file)) {
-				throw new Exception("Route file not found: $routes");
-			}
-			require $file;
-		}
-
-		self::$group_prefix = $previousPrefix;
-		self::$group_middlewares = $previousMiddlewares;
-	}
+    /**
+     * Group routes under a common prefix and middleware stack.
+     * @param string $prefix			The route prefix.
+     * @param callable|string $routes	Route callback or route file.
+     * @param array|null $middlewares	Middlewares to apply.
+     * @return void
+     */
+    public static function group($prefix, $routes, $middlewares = null) {
+        $previousPrefix = self::$group_prefix;
+        $previousMiddlewares = self::$group_middlewares;
+        self::$group_prefix .= rtrim($prefix, '/');
+        
+        if (is_array($middlewares)) {
+            self::$group_middlewares = array_merge(
+                self::$group_middlewares,
+                $middlewares
+            );
+        }
+        
+        if (is_callable($routes)) {
+            call_user_func($routes);
+        } elseif (is_string($routes)) {
+            if (!str_contains($routes, '.php')) {
+                $routes .= '.php';
+            }
+            $file = self::rootDir() . "/" . self::$routesDir . "/$routes";
+            if (!file_exists($file)) {
+                throw new Exception("Route file not found: $routes");
+            }
+            require $file;
+        }
+        self::$group_prefix = $previousPrefix;
+        self::$group_middlewares = $previousMiddlewares;
+    }
 
     /**
      * Set a middleware.
