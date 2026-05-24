@@ -676,8 +676,9 @@ class Route {
         } else {
             $file = self::path(self::rootDir(), $callback);
             $file = realpath($file);
+            $root = self::rootDir();
 
-            if (!$file || !substr($file, 0, strlen(self::rootDir())) !== self::rootDir()) {
+            if (!$file || strncmp($file, $root, strlen($root)) !== 0) {
                 throw new Exception("Invalid file path");
             }
 
