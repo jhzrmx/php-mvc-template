@@ -2,6 +2,8 @@
 
 A lightweight **PHP MVC starter** with a simple router, middleware support, JWT authentication, and [RedBeanPHP](https://github.com/gabordemooij/redbean) for database access. Designed to be easy to understand, easy to extend, and friendly for those who started with Laravel.
 
+> ## WARNING: The whole codebase in undergoing full rewrite, stay tuned for exciting new changes. Don't use this in your project yet.
+
 ## Features
 
 - **Model-View-Controller structure**: `routes/`, `controllers/`, `models/`, `views/`
@@ -55,7 +57,8 @@ cp .env.example .env
 Edit `.env` and configure:
 
 ```env
-JWT_SECRET=your-super-secret-key-at-least-32-chars-long
+APP_ENV=local
+JWT_SECRET=<run: php mvc key:generate>
 JWT_EXPIRES_IN=3600
 
 DB_DSN=mysql:host=127.0.0.1;dbname=myapp
@@ -65,8 +68,9 @@ DB_PASS=secret
 
 Notes:
 
-- `JWT_SECRET` is **required** and must be **at least 32 characters** (enforced in `libs/JWT.php`).
-- `DB_*` is used by RedBeanPHP via `R::setup(...)` in `index.php`.
+- `JWT_SECRET` is **required**, must be **at least 32 characters**, and the old example value is rejected (enforced in `libs/JWT.php`). Generate one with `php mvc key:generate` (`php mvc init` does this for you).
+- `APP_ENV=production` freezes the RedBean schema and hides error details.
+- `DB_*` is used by RedBeanPHP via `R::setup(...)` in `bootstrap.php`.
 
 3. **Set up database** (if needed)
 
@@ -105,8 +109,10 @@ serve.cmd
 Or use the native PHP server directly:
 
 ```bash
-php -S localhost:8000
+php -S localhost:8000 -t public
 ```
+
+Always pass `-t public`: the built-in server serves every file under its document root, so without it `.env` and your database would be downloadable.
 
 Then open:
 
@@ -118,7 +124,28 @@ Note: Use the built-in PHP server during development only. **DO NOT USE IT FOR P
 
 ### Option B: Apache (recommended for production)
 
-If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is respected so all requests route through `index.php`.
+Point the web server's **document root at the `public/` directory**. Only `public/index.php` is web-accessible; `.env`, `data/`, `storage/`, `libs/` and the rest of the app live outside the web root.
+
+Apache: enable `mod_rewrite` and `AllowOverride All` so `public/.htaccess` is respected. If your host won't let you change the document root, the root `.htaccess` forwards everything into `public/` as a fallback.
+
+nginx:
+
+```nginx
+root /var/www/app/public;
+index index.php;
+
+location / {
+    try_files $uri /index.php?$query_string;
+}
+
+location ~ \.php$ {
+    # only the front controller may be executed
+    try_files /index.php =404;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+    fastcgi_pass unix:/run/php/php-fpm.sock;
+}
+```
 
 ## Project structure
 
@@ -127,13 +154,16 @@ If using Apache, ensure `mod_rewrite` is enabled and the included `.htaccess` is
 ├─ controllers/          # Controllers (e.g., AuthController, UserController)
 ├─ models/               # Models (RedBean-backed)
 ├─ routes/               # Route definitions (web + API groups)
-├─ middleware/           # Route middleware (auth, authRedirect)
+├─ middleware/           # Route middleware (auth, authRedirect, role)
 ├─ views/                # Static HTML pages or dynamic PHP pages
-├─ libs/                 # Router, JWT, DotEnv, Auth, RedBeanPHP
+├─ libs/                 # Router, JWT, DotEnv, Auth, RateLimiter, RedBeanPHP
+├─ public/               # Web root: index.php (front controller) + .htaccess
+├─ data/                 # SQLite database (outside the web root)
+├─ storage/              # Runtime files, e.g. rate-limiter state (outside the web root)
+├─ bootstrap.php         # App bootstrap
 ├─ mvc                   # CLI Runner
-├─ index.php             # App bootstrap
 ├─ .env.example          # Environment template
-├─ .htaccess             # Apache rewrite to index.php
+├─ .htaccess             # Fallback: forwards to public/ if the docroot can't be changed
 └─ serve.cmd             # Convenience runner (Windows)
 ```
 
@@ -143,7 +173,7 @@ Routes are registered in `routes/web.php` and (via groups) in `routes/*.routes.p
 
 - **Loading routes (bootstrap)**
 
-Routes are loaded during app bootstrap from `index.php`:
+Routes are loaded during app bootstrap from `bootstrap.php`:
 
 ```php
 Route::init();
@@ -190,6 +220,8 @@ You can attach middleware in two places:
 - On a group: pass middleware as the 3rd argument to `Route::group(...)`; all routes registered inside the group inherit the group middleware.
 
 Middleware runs in this order: group middleware first, then the route’s own middleware.
+
+Built-in middleware: `auth` (API, 401 JSON), `authRedirect` (pages, redirects to `/login`) and `role:<name>[,<name>]` (403 unless the user has one of the roles; run it after `auth`).
 
 Middleware parameters (optional): if you use `name:param1,param2`, the middleware receives an array of parameters as its `$params` argument (Router splits on `:` and `,`), very useful for **role-based access** routing.
 
@@ -238,6 +270,11 @@ $res->status(200)->file('views/dashboard-no-js.php', ['user' => $user]);
 JWT is initialized at boot and enforced via middleware:
 
 - **API protection**: `middleware/auth.php` returns `401` JSON on failure
+- Tokens carry the **user ID** (`sub`) and a **token version** (`tv`). On every request the user is loaded from the database, so deleted users and revoked tokens are rejected immediately.
+- **Logout revokes all of that user's tokens** (every device). Changing a password does the same.
+- **Roles**: users are `user` by default. Promote one with `php mvc user:promote <username>`. The role is read from the database, never from the token.
+- **Rate limiting**: login allows 5 failed attempts per IP+username and 20 per IP per 15 minutes; registration allows 10 per IP per hour. Exceeding either returns `429` with `Retry-After`.
+- Existing tokens from older versions of this template (username as `sub`) are rejected, so users must log in again.
 - **Page protection**: `middleware/authRedirect.php` redirects to `/login` on failure
 
 ### Token sources supported by middleware
@@ -250,8 +287,8 @@ JWT is initialized at boot and enforced via middleware:
 
 Base path: `/api/auth`
 
-- `POST /api/auth/register` → create user + return token
-- `POST /api/auth/login` → verify credentials + return token
+- `POST /api/auth/register` → create user, sets the auth cookie
+- `POST /api/auth/login` → verify credentials, sets the auth cookie
 - `GET /api/auth/me` (**protected**) → return current user
 
 Example login:
@@ -271,14 +308,17 @@ curl http://localhost:8000/api/auth/me ^
 
 ## Users API
 
-Base path: `/api/users` (protected by `auth` middleware via `routes/web.php`)
+Base path: `/api/users` (protected by `auth` middleware via `routes/api.php`)
 
-- `GET /api/users/` → list users
-- `GET /api/users/:id` → show user
-- `POST /api/users/` → create user
-- `PUT /api/users/:id` → replace/update user fields
-- `PATCH /api/users/:id` → partial update
-- `DELETE /api/users/:id` → delete user
+| Endpoint | Who |
+| --- | --- |
+| `GET /api/users` | admin |
+| `POST /api/users` | admin |
+| `GET /api/users/:id` | the user themself, or admin |
+| `PUT` / `PATCH /api/users/:id` | the user themself, or admin |
+| `DELETE /api/users/:id` | the user themself, or admin |
+
+Updates accept `username`, `email` and `password` only; `role` cannot be changed over the API. Changing your own password requires `current_password`.
 
 ## Database (RedBeanPHP)
 
@@ -308,7 +348,7 @@ Contributions are welcome. If you’re unsure where to start, check the suggeste
 git checkout -b feat/your-feature
 ```
 
-3. Make changes and test locally (run `php -S localhost:8000`)
+3. Make changes and test locally (run `php mvc serve`)
 4. Open a pull request describing:
    - what you changed
    - why you changed it
@@ -316,9 +356,12 @@ git checkout -b feat/your-feature
 
 ## Security notes
 
-- JWT uses **HS256** and requires a strong `JWT_SECRET`.
+- JWT uses **HS256**, requires a strong `JWT_SECRET`, and requires an `exp` claim.
 - Do not store sensitive data in JWT payloads.
 - Use HTTPS in production when sending tokens via headers/cookies.
+- Serve only `public/`. Never point the web server at the project root.
+- If you deploy behind a reverse proxy, make your web server restore the real client IP (e.g. `mod_remoteip`, nginx `real_ip`); rate limiting uses `REMOTE_ADDR`.
+- With `APP_ENV=production` the schema is frozen: add the `role` (text) and `token_version` (integer, default 0) columns to an existing `user` table yourself.
 
 ## Credits
 

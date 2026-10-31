@@ -11,6 +11,6 @@ Route::get('/dashboard-no-js', function(Response $res) {
 }, ['authRedirect']);
 
 Route::post('/logout', function(Request $req, Response $res) {
-    Auth::clear();
+    Auth::logout(); // revokes all of this user's tokens and clears the cookie
     $res->redirect('/login');
 }, ['authRedirect']);

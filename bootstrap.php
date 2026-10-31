@@ -1,24 +1,33 @@
 <?php
 
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', __DIR__);
+}
+
 function isProduction() {
     return !empty($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'production';
 }
 
-try {
-    require_once 'libs/index.php';
+// Baseline security headers for every response
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: same-origin');
 
-    DotEnv::loadFromFile();
+try {
+    require_once BASE_PATH . '/libs/index.php';
+
+    DotEnv::loadFromFile(BASE_PATH . '/.env');
 
     if (empty($_ENV['DB_USER']) && empty($_ENV['DB_PASS'])) {
         R::setup($_ENV['DB_DSN']);
     } else {
         R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
     }
-    
+
     if (isProduction()) R::freeze(true);
-    
+
     $jwtSecret = $_ENV['JWT_SECRET'] ?? null;
-    
+
     Auth::init(new JWT($jwtSecret));
 
     Route::init();
@@ -29,9 +38,9 @@ try {
     Route::add404('views/404.html');
     R::close();
 } catch (Throwable $e) {
-	http_response_code(500);
+    http_response_code(500);
     header('Content-Type: application/json');
-	echo json_encode(['error' => 'Internal Server Error', 'message' => isProduction() ? 'An unexpected error occurred on the server.' : $e->getMessage()]);
-    error_log($e->getTraceAsString());
+    echo json_encode(['error' => 'Internal Server Error', 'message' => isProduction() ? 'An unexpected error occurred on the server.' : $e->getMessage()]);
+    error_log($e->getMessage() . "\n" . $e->getTraceAsString());
     exit();
 }

@@ -313,6 +313,9 @@ class Route {
      * @return string
      */
     private static function rootDir() {
+        if (defined('BASE_PATH')) {
+            return realpath(BASE_PATH);
+        }
         return realpath(dirname($_SERVER['SCRIPT_FILENAME']));
     }
     
@@ -322,9 +325,12 @@ class Route {
      * @return string
      */
     private static function path(...$segments) {
-        return join(DIRECTORY_SEPARATOR, array_map(function ($segment) {
+        // Only trim the END of the first segment so absolute paths ("/var/www/app") keep their leading slash.
+        $first = rtrim((string) array_shift($segments), '/\\');
+        $rest = array_map(function ($segment) {
             return trim($segment, '/\\');
-        }, $segments));
+        }, $segments);
+        return join(DIRECTORY_SEPARATOR, array_merge([$first], $rest));
     }
 
     /**
@@ -678,7 +684,7 @@ class Route {
             $file = realpath($file);
             $root = self::rootDir();
 
-            if (!$file || strncmp($file, $root, strlen($root)) !== 0) {
+            if (!$file || strncmp($file, $root . DIRECTORY_SEPARATOR, strlen($root) + 1) !== 0) {
                 throw new Exception("Invalid file path");
             }
 

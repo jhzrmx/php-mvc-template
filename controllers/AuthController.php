@@ -2,6 +2,32 @@
 
 class AuthController {
 
+    // Login throttling: failed attempts per (IP + username) and per IP
+    private const LOGIN_MAX_PER_USER = 5;
+    private const LOGIN_MAX_PER_IP = 20;
+    private const LOGIN_WINDOW = 900; // 15 minutes
+    // Registration throttling: attempts per IP
+    private const REGISTER_MAX_PER_IP = 10;
+    private const REGISTER_WINDOW = 3600; // 1 hour
+
+    private function clientIp() {
+        return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    }
+
+    private function tooManyRequests(Response $res, $retryAfter) {
+        $retryAfter = max(1, (int) $retryAfter);
+        header('Retry-After: ' . $retryAfter);
+        $res->status(429)->json([
+            'error' => 'Too many attempts',
+            'message' => 'Please try again in ' . $retryAfter . ' seconds'
+        ]);
+    }
+
+    private function serverError(Response $res, Throwable $e) {
+        error_log(get_class($e) . ': ' . $e->getMessage());
+        $res->status(500)->json(['error' => 'Internal Server Error', 'message' => 'An unexpected error occurred']);
+    }
+
     /**
      * POST /api/auth/login
      * Body: { "username": "...", "password": "..." }
@@ -9,42 +35,50 @@ class AuthController {
      */
     public function login(Request $req, Response $res) {
         $body = is_array($req->body) ? $req->body : [];
-        $username = trim($body['username'] ?? $body['email'] ?? '');
+        $username = trim((string) ($body['username'] ?? $body['email'] ?? ''));
         $password = $body['password'] ?? '';
 
-        if ($username === '' || $password === '') {
+        if ($username === '' || !is_string($password) || $password === '') {
             $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
+        }
+
+        $ip = $this->clientIp();
+        $userKey = 'login:' . $ip . ':' . strtolower($username);
+        $ipKey = 'login-ip:' . $ip;
+
+        if (RateLimiter::tooManyAttempts($userKey, self::LOGIN_MAX_PER_USER)) {
+            $this->tooManyRequests($res, RateLimiter::retryAfter($userKey));
+        }
+        if (RateLimiter::tooManyAttempts($ipKey, self::LOGIN_MAX_PER_IP)) {
+            $this->tooManyRequests($res, RateLimiter::retryAfter($ipKey));
         }
 
         try {
             $userBean = User::findByUsername($username);
-            if (!$userBean) {
-                $res->status(401)->json(['error' => 'User not found', 'message' => 'User with username ' . $username . ' does not exist']);
-            }
-            if (!User::verifyPassword($userBean, $password)) {
+
+            // Same work and same message whether the user exists or not (no username enumeration)
+            $valid = $userBean
+                ? User::verifyPassword($userBean, $password)
+                : User::dummyVerify($password);
+
+            if (!$userBean || !$valid) {
+                RateLimiter::hit($userKey, self::LOGIN_MAX_PER_USER, self::LOGIN_WINDOW);
+                RateLimiter::hit($ipKey, self::LOGIN_MAX_PER_IP, self::LOGIN_WINDOW);
                 $res->status(401)->json(['error' => 'Invalid credentials', 'message' => 'Invalid username or password']);
             }
 
-            $userData = User::toArray($userBean);
-            $this->respondWithToken($res, $username, $userData);
-        } catch (Exception $e) {
-            $res->status(400)->json(['error' => 'Login failed', 'message' => $e->getMessage()]);
+            RateLimiter::clear($userKey);
+            $this->respondWithToken($res, $userBean);
+        } catch (Throwable $e) {
+            $this->serverError($res, $e);
         }
     }
 
-    private function respondWithToken(Response $res, $username, array $userData) {
-        $jwt = Auth::getJwt();
-        $expiresIn = (int) (getenv('JWT_EXPIRES_IN') ?: $_ENV['JWT_EXPIRES_IN'] ?? 3600);
-        $payload = [
-            'sub' => $username,
-            'username' => $username,
-            'exp' => time() + $expiresIn,
-        ];
-        $token = $jwt->sign($payload);
-        Auth::setTokenCookie($token, $expiresIn);
-        $res->status(200)->json([
+    private function respondWithToken(Response $res, $userBean, $status = 200) {
+        $expiresIn = Auth::login($userBean);
+        $res->status($status)->json([
             'expires_in' => $expiresIn,
-            'user' => $userData,
+            'user' => User::toArray($userBean),
         ]);
     }
 
@@ -54,47 +88,46 @@ class AuthController {
      */
     public function register(Request $req, Response $res) {
         $body = is_array($req->body) ? $req->body : [];
-        $username = trim($body['username'] ?? $body['email'] ?? '');
+        $username = trim((string) ($body['username'] ?? $body['email'] ?? ''));
         $password = $body['password'] ?? '';
-        $email = isset($body['email']) ? trim($body['email']) : null;
+        $email = isset($body['email']) ? trim((string) $body['email']) : null;
 
-        if ($username === '' || $password === '') {
-            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
+        if (!RateLimiter::hit('register:' . $this->clientIp(), self::REGISTER_MAX_PER_IP, self::REGISTER_WINDOW)) {
+            $this->tooManyRequests($res, RateLimiter::retryAfter('register:' . $this->clientIp()));
         }
-        if (strlen($password) < 6) {
-            $res->status(400)->json(['error' => 'Password too short', 'message' => 'Password must be at least 6 characters']);
+
+        if ($username === '' || !is_string($password) || $password === '') {
+            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
         }
 
         try {
-            $bean = User::create($username, $password, $email);
-            $userData = User::toArray($bean);
-            $this->respondWithToken($res, $username, $userData);
-        } catch (Exception $e) {
+            $bean = User::create($username, $password, $email); // role is always 'user' here
+            $this->respondWithToken($res, $bean);
+        } catch (InvalidArgumentException $e) {
             $res->status(400)->json(['error' => 'Sign up failed', 'message' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            $this->serverError($res, $e);
         }
     }
 
     /**
      * GET /api/auth/me (protected)
-     * Returns current user from JWT; if stored in DB, returns full user record.
+     * Returns the current user record from the database.
      */
     public function me(Request $req, Response $res) {
-        $payload = Auth::user();
-        if (!$payload) {
+        $user = Auth::user();
+        if (!$user) {
             $res->status(401)->json(['error' => 'Not authenticated']);
         }
-        $username = $payload['username'] ?? $payload['sub'] ?? null;
-        $userBean = $username ? User::findByUsername($username) : null;
-        $user = $userBean ? User::toArray($userBean) : $payload;
         $res->status(200)->json(['user' => $user]);
     }
 
     /**
      * POST /api/auth/logout
-     * Clears the auth cookie.
+     * Revokes every token issued to this user and clears the auth cookie.
      */
     public function logout(Request $req, Response $res) {
-        Auth::clearTokenCookie();
+        Auth::logout();
         $res->status(200)->json(['message' => 'Logged out']);
     }
 }

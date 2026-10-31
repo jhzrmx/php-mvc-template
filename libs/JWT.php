@@ -24,8 +24,11 @@ class JWT {
      * @throws Exception If the secret is not set or is less than 32 characters.
      */
     public function __construct($secret) {
-        if (empty($secret) || strlen($secret) < 32) {
-            throw new Exception("JWT secret must be at least 32 characters.");
+        if (empty($secret) || !is_string($secret) || strlen($secret) < 32) {
+            throw new Exception("JWT_SECRET is missing or shorter than 32 characters. Run: php mvc key:generate");
+        }
+        if ($secret === 'your-super-secret-key-at-least-32-chars-long') {
+            throw new Exception("JWT_SECRET is still the example value. Run: php mvc key:generate");
         }
         $this->secret = $secret;
     }
@@ -147,6 +150,13 @@ class JWT {
             );
         }
 
+        if (!isset($payload['exp']) || !is_numeric($payload['exp'])) {
+            return array(
+                'valid' => false,
+                'reason' => 'Token has no expiry'
+            );
+        }
+
         $now = time();
         if (isset($payload['nbf']) && ($payload['nbf'] - $this->leeway) > $now) {
             return array(
@@ -162,7 +172,7 @@ class JWT {
             );
         }
 
-        if (isset($payload['exp']) && ($payload['exp'] + $this->leeway) < $now) {
+        if (($payload['exp'] + $this->leeway) < $now) {
             return array(
                 'valid' => false,
                 'reason' => 'Token expired'

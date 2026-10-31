@@ -25,6 +25,12 @@ switch ($command) {
     case 'init':
         handleInitCommand();
         break;
+    case 'key:generate':
+        handleKeyGenerateCommand($args);
+        break;
+    case 'user:promote':
+        handleUserPromoteCommand($args);
+        break;
     default:
         echo "Unknown command: {$command}\n";
         showHelp();
@@ -42,6 +48,8 @@ Commands:
   init                Initialize the project (create .env file)
   serve               Start the PHP development server
   setup:sqlite        Set up a SQLite database
+  key:generate        Generate a random JWT_SECRET in .env (use --force to skip the prompt)
+  user:promote NAME   Make a user an admin (use --role=user to demote)
   help                Show this help message
 
 Serve Command Options:
@@ -59,6 +67,8 @@ Examples:
   php mvc serve --host 0.0.0.0 --port 8888
   php mvc setup:sqlite
   php mvc setup:sqlite --dbname mydatabase.db
+  php mvc key:generate
+  php mvc user:promote alice
 
 HELP;
 }
@@ -237,14 +247,16 @@ function handleServeCommand($args) {
     
     echo "Starting PHP development server...\n";
     echo "Server running at http://{$host}:{$port}/\n";
-    echo "Document root: " . getcwd() . "\n";
+    echo "Document root: " . __DIR__ . "/public\n";
     echo "Press Ctrl+C to stop.\n\n";
     
     // Build the command
+    // Serve ONLY the public/ directory so .env, data/, storage/ etc. can never be downloaded
     $cmd = sprintf(
-        'php -S %s:%s',
-        escapeshellarg($host),
-        escapeshellarg($port)
+        '%s -S %s -t %s',
+        escapeshellarg(PHP_BINARY),
+        escapeshellarg($host . ':' . $port),
+        escapeshellarg(__DIR__ . '/public')
     );
     
     passthru($cmd);
@@ -269,6 +281,7 @@ function handleInitCommand() {
     echo "Initializing project...\n";
     
     createEnvFile();
+    ensureJwtSecret();
     
     $useSqlite = readStdin("Use SQLite? (y/n): ");
     
@@ -288,5 +301,97 @@ function handleInitCommand() {
     } else {
         echo "Using MySQL as default database.\n";
         updateEnvVariable('DB_DSN', "mysql:host=127.0.0.1;dbname=mvc_db");
+    }
+}
+
+/**
+ * Read a raw value from the .env file (or null if missing).
+ */
+function readEnvValue($key, $envFile = '.env') {
+    if (!file_exists($envFile)) return null;
+    $content = file_get_contents($envFile);
+    if (!preg_match('/^' . preg_quote($key, '/') . '=(.*)$/m', $content, $m)) return null;
+    return trim(trim($m[1]), "\"'");
+}
+
+function jwtSecretIsValid($secret) {
+    return is_string($secret)
+        && strlen($secret) >= 32
+        && $secret !== 'your-super-secret-key-at-least-32-chars-long';
+}
+
+/**
+ * Generate a JWT secret only if the current one is missing, too short, or the old example value.
+ */
+function ensureJwtSecret() {
+    if (jwtSecretIsValid(readEnvValue('JWT_SECRET'))) {
+        return;
+    }
+    updateEnvVariable('JWT_SECRET', bin2hex(random_bytes(32)));
+    echo "✓ Generated a random JWT_SECRET in .env\n";
+}
+
+function handleKeyGenerateCommand($args) {
+    if (!file_exists('.env')) {
+        echo "No .env file found. Run: php mvc init\n";
+        exit(1);
+    }
+    $force = in_array('--force', $args, true);
+    if (!$force && jwtSecretIsValid(readEnvValue('JWT_SECRET'))) {
+        $response = readStdin("A valid JWT_SECRET already exists. Replacing it signs out every user. Continue? (y/n): ");
+        if ($response !== 'y') {
+            echo "Cancelled.\n";
+            return;
+        }
+    }
+    updateEnvVariable('JWT_SECRET', bin2hex(random_bytes(32)));
+    echo "✓ New JWT_SECRET written to .env\n";
+}
+
+/**
+ * Boot just enough of the app (env + database + models) for CLI commands.
+ */
+function bootApp() {
+    if (!defined('BASE_PATH')) {
+        define('BASE_PATH', __DIR__);
+    }
+    chdir(BASE_PATH);
+    require_once BASE_PATH . '/libs/index.php';
+    DotEnv::loadFromFile(BASE_PATH . '/.env');
+    if (empty($_ENV['DB_USER']) && empty($_ENV['DB_PASS'])) {
+        R::setup($_ENV['DB_DSN']);
+    } else {
+        R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
+    }
+    require_once BASE_PATH . '/models/User.php';
+}
+
+function handleUserPromoteCommand($args) {
+    $username = null;
+    foreach ($args as $arg) {
+        if (strpos($arg, '-') !== 0) {
+            $username = $arg;
+            break;
+        }
+    }
+    $role = getOptionValue($args, 'role') ?? 'admin';
+
+    if (!$username) {
+        echo "Usage: php mvc user:promote USERNAME [--role=admin|user]\n";
+        exit(1);
+    }
+
+    try {
+        bootApp();
+        $bean = User::findByUsername($username);
+        if (!$bean) {
+            echo "User not found: {$username}\n";
+            exit(1);
+        }
+        User::setRole($bean, $role);
+        echo "✓ {$username} is now '{$role}' (their existing sessions were signed out)\n";
+    } catch (Throwable $e) {
+        echo "Error: " . $e->getMessage() . "\n";
+        exit(1);
     }
 }
