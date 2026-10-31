@@ -2,62 +2,122 @@
 
 class UserController {
 
+    /**
+     * Only the account owner or an admin may touch a user record.
+     * Non-admins get the same 403 for any other ID, whether or not it exists.
+     *
+     * @return array [actorBean, isAdmin]
+     */
+    private function authorizeAccess(Response $res, $id) {
+        $actor = Auth::currentUser();
+        $isAdmin = User::isAdmin($actor);
+        if (!$actor || (!$isAdmin && (int) $actor->id !== (int) $id)) {
+            $res->status(403)->json(['error' => 'Forbidden', 'message' => 'You do not have permission to access this user']);
+        }
+        return [$actor, $isAdmin];
+    }
+
+    private function notFound(Response $res, $id) {
+        $res->status(404)->json(['error' => 'User not found', 'message' => 'User does not exist']);
+    }
+
+    private function serverError(Response $res, Throwable $e) {
+        error_log(get_class($e) . ': ' . $e->getMessage());
+        $res->status(500)->json(['error' => 'Internal Server Error', 'message' => 'An unexpected error occurred']);
+    }
+
+    /** GET /api/users (admin only, enforced by route middleware) */
     public function index(Request $req, Response $res) {
         $users = User::all();
         $res->status(200)->json(['data' => $users]);
     }
 
+    /** GET /api/users/:id (self or admin) */
     public function show(Request $req, Response $res, string $id) {
+        $this->authorizeAccess($res, $id);
         $user = User::find($id);
         if (!$user) {
-            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
+            $this->notFound($res, $id);
         }
         $res->status(200)->json($user);
     }
 
+    /** POST /api/users (admin only, enforced by route middleware) */
     public function create(Request $req, Response $res) {
         $data = is_array($req->body) ? $req->body : [];
-        $username = trim($data['username'] ?? '');
+        $username = trim((string) ($data['username'] ?? ''));
         $password = $data['password'] ?? '';
-        $email = isset($data['email']) ? trim($data['email']) : null;
+        $email = isset($data['email']) ? trim((string) $data['email']) : null;
+        $role = $data['role'] ?? User::ROLE_USER;
 
-        if ($username === '' || $password === '') {
+        if ($username === '' || !is_string($password) || $password === '') {
             $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
-        }
-        if (strlen($password) < 6) {
-            $res->status(400)->json(['error' => 'Password too short', 'message' => 'Password must be at least 6 characters']);
         }
 
         try {
-            $bean = User::create($username, $password, $email);
-            $user = User::toArray($bean);
-            $res->status(201)->json($user);
-        } catch (Exception $e) {
-            $res->status(400)->json(['error' => 'Sign up failed', 'message' => $e->getMessage()]);
+            $bean = User::create($username, $password, $email, $role);
+            $res->status(201)->json(User::toArray($bean));
+        } catch (InvalidArgumentException $e) {
+            $res->status(400)->json(['error' => 'Could not create user', 'message' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            $this->serverError($res, $e);
         }
     }
 
+    /** PUT /api/users/:id (self or admin) */
     public function update(Request $req, Response $res, string $id) {
-        $data = is_array($req->body) ? $req->body : [];
-        $bean = User::updateById($id, $data);
-        if (!$bean) {
-            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
+        [$actor, $isAdmin] = $this->authorizeAccess($res, $id);
+        $body = is_array($req->body) ? $req->body : [];
+        $isSelf = (int) $actor->id === (int) $id;
+
+        // Only these fields can be changed. `role` can never be set through this endpoint.
+        $data = array_intersect_key($body, array_flip(['username', 'email', 'password']));
+
+        if (!empty($data['password']) && $isSelf) {
+            // Changing your own password requires proving you know the current one
+            $key = 'pwchange:' . $actor->id;
+            if (RateLimiter::tooManyAttempts($key, 5)) {
+                header('Retry-After: ' . max(1, RateLimiter::retryAfter($key)));
+                $res->status(429)->json(['error' => 'Too many attempts', 'message' => 'Please try again later']);
+            }
+            $current = $body['current_password'] ?? '';
+            if (!User::verifyPassword($actor, is_string($current) ? $current : '')) {
+                RateLimiter::hit($key, 5, 900);
+                $res->status(403)->json(['error' => 'Forbidden', 'message' => 'Current password is incorrect']);
+            }
+            RateLimiter::clear($key);
         }
-        $res->status(200)->json(User::toArray($bean));
+
+        try {
+            $bean = User::updateById($id, $data);
+            if (!$bean) {
+                $this->notFound($res, $id);
+            }
+            // Changing a password revokes old tokens; keep the person who did it signed in
+            if (!empty($data['password']) && $isSelf) {
+                Auth::login($bean);
+            }
+            $res->status(200)->json(User::toArray($bean));
+        } catch (InvalidArgumentException $e) {
+            $res->status(400)->json(['error' => 'Could not update user', 'message' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            $this->serverError($res, $e);
+        }
     }
 
+    /** PATCH /api/users/:id (self or admin) */
     public function patch(Request $req, Response $res, string $id) {
-        $data = is_array($req->body) ? $req->body : [];
-        $bean = User::updateById($id, $data);
-        if (!$bean) {
-            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
-        }
-        $res->status(200)->json(User::toArray($bean));
+        $this->update($req, $res, $id);
     }
 
+    /** DELETE /api/users/:id (self or admin) */
     public function destroy(Request $req, Response $res, string $id) {
+        [$actor] = $this->authorizeAccess($res, $id);
         if (!User::deleteById($id)) {
-            $res->status(404)->json(['error' => 'User not found', 'message' => 'User with ID ' . $id . ' does not exist']);
+            $this->notFound($res, $id);
+        }
+        if ((int) $actor->id === (int) $id) {
+            Auth::clearTokenCookie();
         }
         $res->status(200)->json(['message' => 'User deleted']);
     }

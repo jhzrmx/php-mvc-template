@@ -10,3 +10,7 @@ vendor/
 
 # RedBean SQLite DB
 data/*.db
+
+# Rate limiter state
+storage/ratelimit/*
+!storage/ratelimit/.gitkeep

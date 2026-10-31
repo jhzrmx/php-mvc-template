@@ -1,16 +1,12 @@
 <?php
 
-// Old Routes but still supported:
-// Route::get('/', 'UserController@index');
-// Route::get('/:id', 'UserController@show');
-// Route::post('/', 'UserController@create');
-// Route::put('/:id', 'UserController@update');
-// Route::patch('/:id', 'UserController@patch');
-// Route::delete('/:id', 'UserController@destroy');
+// This group is mounted at /api/users behind the `auth` middleware (see routes/api.php).
+// Listing and creating users is admin-only; the :id routes are limited to the account
+// owner or an admin inside UserController (authorizeAccess).
 
-Route::get('/', [UserController::class, 'index']);
+Route::get('/', [UserController::class, 'index'], ['role:admin']);
 Route::get('/:id', [UserController::class, 'show']);
-Route::post('/', [UserController::class, 'create']);
+Route::post('/', [UserController::class, 'create'], ['role:admin']);
 Route::put('/:id', [UserController::class, 'update']);
 Route::patch('/:id', [UserController::class, 'patch']);
 Route::delete('/:id', [UserController::class, 'destroy']);

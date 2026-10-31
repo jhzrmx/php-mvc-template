@@ -8,6 +8,7 @@
 class Auth {
     private static $jwt = null;
     private static $payload = null;
+    private static $user = null;
     private static string $tokenCookie = 'token';
 
     public static function init(JWT $jwt) {
@@ -80,6 +81,86 @@ class Auth {
         return !empty($result['valid']);
     }
 
+    /**
+     * Fully authenticate the current request:
+     *  1. a token is present and its signature/expiry are valid
+     *  2. the user in `sub` (an integer user ID) still exists
+     *  3. the token's version matches the user's current token_version
+     *     (bumped on logout / password change, which revokes older tokens)
+     *
+     * On success the payload and user are stored for Auth::user() / Auth::id().
+     *
+     * @return array ['valid' => bool, 'reason' => string]
+     */
+    public static function authenticate() {
+        self::$payload = null;
+        self::$user = null;
+
+        if (!self::$jwt) {
+            return ['valid' => false, 'reason' => 'Auth not configured'];
+        }
+        $token = self::getToken();
+        if (!$token) {
+            return ['valid' => false, 'reason' => 'Token missing'];
+        }
+        $result = self::$jwt->verify($token);
+        if (empty($result['valid'])) {
+            return ['valid' => false, 'reason' => $result['reason'] ?? 'Invalid token'];
+        }
+
+        $payload = $result['payload'];
+        $sub = $payload['sub'] ?? null;
+        if (!is_int($sub) || $sub <= 0) {
+            return ['valid' => false, 'reason' => 'Invalid token subject'];
+        }
+
+        $user = User::findBean($sub);
+        if (!$user) {
+            return ['valid' => false, 'reason' => 'User no longer exists'];
+        }
+        if (!isset($payload['tv']) || (int) $payload['tv'] !== (int) $user->token_version) {
+            return ['valid' => false, 'reason' => 'Token revoked'];
+        }
+
+        self::$payload = $payload;
+        self::$user = $user;
+        return ['valid' => true, 'reason' => 'Token validated'];
+    }
+
+    /**
+     * Issue a token for a user bean, set the auth cookie and mark them as logged in.
+     *
+     * @return int Token lifetime in seconds
+     */
+    public static function login($userBean) {
+        $expiresIn = (int) ($_ENV['JWT_EXPIRES_IN'] ?? getenv('JWT_EXPIRES_IN') ?: 3600);
+        if ($expiresIn <= 0) {
+            $expiresIn = 3600;
+        }
+        $payload = [
+            'sub' => (int) $userBean->id,
+            'tv'  => (int) $userBean->token_version,
+            'exp' => time() + $expiresIn,
+        ];
+        self::setTokenCookie(self::$jwt->sign($payload), $expiresIn);
+        self::$payload = $payload;
+        self::$user = $userBean;
+        return $expiresIn;
+    }
+
+    /**
+     * Log out everywhere: invalidates every token issued to this user, then clears the cookie.
+     */
+    public static function logout() {
+        if (self::$user === null) {
+            self::authenticate();
+        }
+        if (self::$user !== null) {
+            User::revokeTokens(self::$user);
+        }
+        self::clear();
+    }
+
     public static function setPayload(array $payload) {
         self::$payload = $payload;
     }
@@ -88,20 +169,31 @@ class Auth {
         return self::$payload;
     }
 
+    /**
+     * The authenticated user's bean (loaded fresh from the DB during authenticate()).
+     */
+    public static function currentUser() {
+        return self::$user;
+    }
+
+    /**
+     * The authenticated user as a safe array (no password hash), or null.
+     */
     public static function user() {
-        return self::$payload;
+        return self::$user ? User::toArray(self::$user) : null;
     }
 
     public static function id() {
-        return self::$payload['sub'] ?? self::$payload['id'] ?? null;
+        return self::$user ? (int) self::$user->id : null;
     }
 
     public static function check() {
-        return self::$payload !== null;
+        return self::$user !== null;
     }
 
     public static function clear() {
         self::clearTokenCookie();
         self::$payload = null;
+        self::$user = null;
     }
 }
