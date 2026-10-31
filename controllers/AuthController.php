@@ -75,11 +75,16 @@ class AuthController {
     }
 
     private function respondWithToken(Response $res, $userBean, $status = 200) {
-        $expiresIn = Auth::login($userBean);
-        $res->status($status)->json([
-            'expires_in' => $expiresIn,
+        $wantsToken = Auth::wantsToken();
+        $session = Auth::login($userBean, !$wantsToken);
+        $body = [
+            'expires_in' => $session['expires_in'],
             'user' => User::toArray($userBean),
-        ]);
+        ];
+        if ($wantsToken) {
+            $body['token'] = $session['token'];
+        }
+        $res->status($status)->json($body);
     }
 
     /**

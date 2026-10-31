@@ -43,18 +43,28 @@ class Auth {
         ]);
     }
 
+    /**
+     * Find the JWT on the request. Checked in this order:
+     *   1. Authorization: Bearer <token>
+     *   2. X-Auth-Token: <token>
+     *   3. the auth cookie (name set with setTokenCookieName(), default "token")
+     *
+     * @return string|null
+     */
     public static function getToken() {
-        $authHeader = $req->params['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-        if (preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
-            $token = trim($m[1]);
-        } elseif (!empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
-            $token = trim($_SERVER['HTTP_X_AUTH_TOKEN']);
-        } elseif (!empty($_COOKIE['token'])) {
-            $token = trim($_COOKIE['token']);
-        } else {
-            return null;
+        // REDIRECT_HTTP_AUTHORIZATION is what Apache provides after an internal rewrite
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+        if (is_string($authHeader) && preg_match('/^Bearer\s+(.+)$/i', trim($authHeader), $m)) {
+            return trim($m[1]);
         }
-        return $token;
+        if (!empty($_SERVER['HTTP_X_AUTH_TOKEN']) && is_string($_SERVER['HTTP_X_AUTH_TOKEN'])) {
+            return trim($_SERVER['HTTP_X_AUTH_TOKEN']);
+        }
+        // is_string guards against ?token[]= style array cookies
+        if (!empty($_COOKIE[self::$tokenCookie]) && is_string($_COOKIE[self::$tokenCookie])) {
+            return trim($_COOKIE[self::$tokenCookie]);
+        }
+        return null;
     }
 
     public static function clearTokenCookie() {
@@ -128,12 +138,23 @@ class Auth {
     }
 
     /**
-     * Issue a token for a user bean, set the auth cookie and mark them as logged in.
-     *
-     * @return int Token lifetime in seconds
+     * API clients that can't use cookies send "X-Return-Token: true" to receive the token
+     * in the response body instead (no cookie is set for them).
+     * Browsers should keep using the HttpOnly cookie: a token in the body is readable by JavaScript.
      */
-    public static function login($userBean) {
-        $expiresIn = (int) ($_ENV['JWT_EXPIRES_IN'] ?? getenv('JWT_EXPIRES_IN') ?: 3600);
+    public static function wantsToken() {
+        return strtolower(trim((string) ($_SERVER['HTTP_X_RETURN_TOKEN'] ?? ''))) === 'true';
+    }
+
+    /**
+     * Issue a token for a user bean and mark them as logged in.
+     *
+     * @param object $userBean
+     * @param bool   $setCookie Set the HttpOnly auth cookie (default true).
+     * @return array ['token' => string, 'expires_in' => int]
+     */
+    public static function login($userBean, $setCookie = true) {
+        $expiresIn = (int) env('JWT_EXPIRES_IN', 3600);
         if ($expiresIn <= 0) {
             $expiresIn = 3600;
         }
@@ -142,10 +163,13 @@ class Auth {
             'tv'  => (int) $userBean->token_version,
             'exp' => time() + $expiresIn,
         ];
-        self::setTokenCookie(self::$jwt->sign($payload), $expiresIn);
+        $token = self::$jwt->sign($payload);
+        if ($setCookie) {
+            self::setTokenCookie($token, $expiresIn);
+        }
         self::$payload = $payload;
         self::$user = $userBean;
-        return $expiresIn;
+        return ['token' => $token, 'expires_in' => $expiresIn];
     }
 
     /**

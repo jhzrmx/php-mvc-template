@@ -5,7 +5,7 @@ if (!defined('BASE_PATH')) {
 }
 
 function isProduction() {
-    return !empty($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'production';
+    return env('APP_ENV') === 'production';
 }
 
 // Baseline security headers for every response
@@ -18,17 +18,19 @@ try {
 
     DotEnv::loadFromFile(BASE_PATH . '/.env');
 
-    if (empty($_ENV['DB_USER']) && empty($_ENV['DB_PASS'])) {
-        R::setup($_ENV['DB_DSN']);
-    } else {
-        R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
+    Database::connect();
+    // Routes end the request with exit(), so close the connection when PHP shuts down
+    register_shutdown_function(function () {
+        R::close();
+    });
+
+    Auth::init(new JWT(env('JWT_SECRET')));
+
+    // CORS is off unless CORS_ALLOWED_ORIGINS is set (comma-separated list, or *)
+    $corsOrigins = array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))));
+    if ($corsOrigins) {
+        Route::cors($corsOrigins, null, null, env('CORS_ALLOW_CREDENTIALS', false) === true);
     }
-
-    if (isProduction()) R::freeze(true);
-
-    $jwtSecret = $_ENV['JWT_SECRET'] ?? null;
-
-    Auth::init(new JWT($jwtSecret));
 
     Route::init();
     Route::loadModels();
@@ -36,7 +38,6 @@ try {
     Route::loadRoutes();
 
     Route::add404('views/404.html');
-    R::close();
 } catch (Throwable $e) {
     http_response_code(500);
     header('Content-Type: application/json');

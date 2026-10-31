@@ -179,6 +179,12 @@ class Route {
      */
     private static $middlewares = [];
     /**
+     * CORS settings registered with Route::cors() (null = CORS disabled).
+     *
+     * @var array|null
+     */
+    private static $cors = null;
+    /**
      * The request object.
      *
      * @var Request
@@ -221,9 +227,14 @@ class Route {
      * @return void
      */
     public static function init() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_method'])) {
-            $_SERVER['REQUEST_METHOD'] = strtoupper($_POST['_method']);
+        // HTML forms can only send GET/POST, so allow tunnelling PUT/PATCH/DELETE through a POST field
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_method']) && is_string($_POST['_method'])) {
+            $override = strtoupper($_POST['_method']);
+            if (in_array($override, ['PUT', 'PATCH', 'DELETE'], true)) {
+                $_SERVER['REQUEST_METHOD'] = $override;
+            }
         }
+        self::sendCorsHeaders();
         if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
             http_response_code(204);
             exit();
@@ -271,6 +282,65 @@ class Route {
     }
 
     /**
+     * Configure CORS. Call this BEFORE Route::init() so preflight (OPTIONS) requests get the
+     * right headers. Only requests whose Origin is in $origins receive CORS headers.
+     *
+     * Credentials (cookies) can only be allowed together with an explicit origin list;
+     * browsers reject "*" combined with credentials, so that combination sends no headers.
+     *
+     * @param array $origins        Allowed origins, e.g. ['https://app.example.com'] or ['*'].
+     * @param array|null $methods   Allowed methods (default: GET, POST, PUT, PATCH, DELETE, OPTIONS).
+     * @param array|null $headers   Allowed request headers (default: Content-Type, Authorization, X-Auth-Token, X-Return-Token).
+     * @param bool $credentials     Allow cookies / Authorization on cross-origin requests.
+     * @param int $maxAge           Seconds browsers may cache the preflight result.
+     * @return void
+     */
+    public static function cors($origins = ['*'], $methods = null, $headers = null, $credentials = false, $maxAge = 600) {
+        self::$cors = [
+            'origins' => array_values((array) $origins),
+            'methods' => $methods ?: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            'headers' => $headers ?: ['Content-Type', 'Authorization', 'X-Auth-Token', 'X-Return-Token'],
+            'credentials' => (bool) $credentials,
+            'maxAge' => (int) $maxAge,
+        ];
+    }
+
+    /**
+     * Emit CORS headers for the current request when Route::cors() was configured.
+     *
+     * @return void
+     */
+    private static function sendCorsHeaders() {
+        if (self::$cors === null) {
+            return;
+        }
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        if ($origin === '' || !is_string($origin)) {
+            return; // not a cross-origin browser request
+        }
+
+        $c = self::$cors;
+        if (in_array('*', $c['origins'], true) && !$c['credentials']) {
+            header('Access-Control-Allow-Origin: *');
+        } elseif (in_array($origin, $c['origins'], true)) {
+            // Echo only an origin that is on the allow-list (never the raw header value)
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Vary: Origin', false);
+            if ($c['credentials']) {
+                header('Access-Control-Allow-Credentials: true');
+            }
+        } else {
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            header('Access-Control-Allow-Methods: ' . implode(', ', $c['methods']));
+            header('Access-Control-Allow-Headers: ' . implode(', ', $c['headers']));
+            header('Access-Control-Max-Age: ' . $c['maxAge']);
+        }
+    }
+
+    /**
      * Add CORS headers for allowed origins.
      *
      * @param array $allowedOrigins The allowed origins for CORS (default: ['*']).
@@ -281,8 +351,9 @@ class Route {
             header('Access-Control-Allow-Origin: *');
         } else {
             $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-            if (in_array($origin, $allowedOrigins)) {
+            if (in_array($origin, $allowedOrigins, true)) {
                 header("Access-Control-Allow-Origin: $origin");
+                header('Vary: Origin', false);
             }
         }
     }
@@ -582,7 +653,8 @@ class Route {
         $args = [];
         foreach ($ref->getParameters() as $param) {
             $type = $param->getType();
-            if ($type) {
+            // Only plain named types can be injected; union/intersection types have no getName()
+            if ($type instanceof ReflectionNamedType) {
                 $name = $type->getName();
                 if ($name === Request::class) {
                     $args[] = self::$request;

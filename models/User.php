@@ -82,7 +82,15 @@ class User extends Model {
         $bean->role = $role;
         $bean->token_version = 0;
         $bean->created_at = date('Y-m-d H:i:s');
-        R::store($bean);
+        try {
+            R::store($bean);
+        } catch (Throwable $e) {
+            // Lost a race with a simultaneous sign-up: the unique index rejected the insert
+            if (self::findByUsername($username)) {
+                throw new InvalidArgumentException('Username already exists.');
+            }
+            throw $e;
+        }
         return $bean;
     }
 
@@ -180,7 +188,15 @@ class User extends Model {
             $bean->password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
             $bean->token_version = (int) $bean->token_version + 1;
         }
-        R::store($bean);
+        try {
+            R::store($bean);
+        } catch (Throwable $e) {
+            $existing = self::findByUsername($bean->username);
+            if ($existing && (int) $existing->id !== (int) $bean->id) {
+                throw new InvalidArgumentException('Username already exists.');
+            }
+            throw $e;
+        }
         return $bean;
     }
 

@@ -6,3 +6,4 @@ require_once 'JWT.php';
 require_once 'RateLimiter.php';
 require_once 'Auth.php';
 require_once 'RedbeanPHP/index.php';
+require_once 'Database.php';
