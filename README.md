@@ -10,13 +10,14 @@ A lightweight **PHP MVC starter** with a simple router, middleware support, JWT 
 - **Router with middleware + groups**: supports `GET/POST/PUT/PATCH/DELETE`, route params (`/:id`), and route groups
 - **Dependency injection (lightweight)**: controller methods can receive `Request` and `Response`
 - **JWT auth** (HS256): login/register endpoints + protected routes via middleware
-- **DotEnv loader**: `.env` support with basic type casting and variable expansion
+- **DotEnv loader**: `.env` support with quoting, escapes and `${VAR}` expansion; values stay strings, read them with `env('KEY', $default)`
 - **RedBeanPHP** ORM: simple model base class and example `User` model
+- **Migrations**: `php mvc migrate` creates and updates tables, so it works with a frozen schema in production
 - **Friendly defaults**: ready-to-run pages (`/login`, `/signup`, `/dashboard`) and API routes under `/api/*`
 
 ## Requirements
 
-- **PHP 8+** (recommended, some libraries I made still support PHP 5.6+)
+- **PHP 8.0+** (the router uses `str_contains` and typed properties)
 - A database supported by PDO (see [RedBeanPHP connection guide](https://www.redbeanphp.com/index.php?p=/connection))
 
 ## Quick start
@@ -42,7 +43,7 @@ This will guide you through:
 
 - Creating a `.env` file from `.env.example`
 - Choosing between SQLite or MySQL
-- Optionally generating database tables
+- Running the database migrations (creates the tables)
 
 #### Option B: Manual Setup
 
@@ -74,7 +75,7 @@ Notes:
 
 3. **Set up database** (if needed)
 
-For SQLite:
+For SQLite (creates the database file and runs the migrations):
 
 ```bash
 php mvc setup:sqlite
@@ -85,6 +86,16 @@ Or with custom SQLite database name:
 ```bash
 php mvc setup:sqlite --dbname myapp.db
 ```
+
+For MySQL or any other database, create the database, set `DB_DSN`, `DB_USER` and `DB_PASS` in `.env`, then create the tables:
+
+```bash
+php mvc migrate
+```
+
+Run `php mvc migrate` again after pulling updates; it only runs migrations that haven't run yet. Migrations live in `database/migrations/` and each file returns a function.
+
+If your `user` table already has duplicate usernames, the unique-username migration will stop with an error: rename or remove the duplicates and run `php mvc migrate` again.
 
 ### Step 3: Run the app
 
@@ -156,7 +167,8 @@ location ~ \.php$ {
 ├─ routes/               # Route definitions (web + API groups)
 ├─ middleware/           # Route middleware (auth, authRedirect, role)
 ├─ views/                # Static HTML pages or dynamic PHP pages
-├─ libs/                 # Router, JWT, DotEnv, Auth, RateLimiter, RedBeanPHP
+├─ libs/                 # Router, JWT, DotEnv, Auth, RateLimiter, Database, RedBeanPHP
+├─ database/migrations/  # Schema migrations (php mvc migrate)
 ├─ public/               # Web root: index.php (front controller) + .htaccess
 ├─ data/                 # SQLite database (outside the web root)
 ├─ storage/              # Runtime files, e.g. rate-limiter state (outside the web root)
@@ -180,6 +192,14 @@ Route::init();
 Route::loadModels();
 Route::loadMiddlewares();
 Route::loadRoutes(); // loads routes/web.php + routes/api.php (configurable)
+```
+
+- **CORS**
+
+Off by default. Set `CORS_ALLOWED_ORIGINS` in `.env` (comma-separated, or `*`), and `CORS_ALLOW_CREDENTIALS=true` if browsers must send cookies (needs explicit origins, not `*`). Preflight `OPTIONS` requests are answered with the right headers. Or configure it in code, before `Route::init()`:
+
+```php
+Route::cors(['https://app.example.com'], null, null, true);
 ```
 
 - **Static file/page routes**
@@ -289,6 +309,8 @@ Base path: `/api/auth`
 
 - `POST /api/auth/register` → create user, sets the auth cookie
 - `POST /api/auth/login` → verify credentials, sets the auth cookie
+
+Browsers use the HttpOnly cookie. API clients that can't use cookies send the header `X-Return-Token: true` to get `"token"` in the JSON response instead (no cookie is set), then send it as `Authorization: Bearer <token>`. The body token is readable by JavaScript, so don't use that header from a browser app.
 - `GET /api/auth/me` (**protected**) → return current user
 
 Example login:
@@ -296,10 +318,11 @@ Example login:
 ```bash
 curl -X POST http://localhost:8000/api/auth/login ^
   -H "Content-Type: application/json" ^
+  -H "X-Return-Token: true" ^
   -d "{\"username\":\"demo\",\"password\":\"secret123\"}"
 ```
 
-Use the returned token:
+Use the returned `token`:
 
 ```bash
 curl http://localhost:8000/api/auth/me ^

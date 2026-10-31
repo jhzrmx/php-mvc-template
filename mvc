@@ -2,6 +2,9 @@
 
 // mvc - Main CLI runner script
 
+// Always run from the project root so .env, data/ etc. resolve no matter where the command is typed
+chdir(__DIR__);
+
 $command = $argv[1] ?? null;
 $args = array_slice($argv, 2);
 
@@ -25,6 +28,8 @@ switch ($command) {
     case 'init':
         handleInitCommand();
         break;
+    case 'migrate':
+        exit(handleMigrateCommand() ? 0 : 1);
     case 'key:generate':
         handleKeyGenerateCommand($args);
         break;
@@ -47,7 +52,8 @@ Usage:
 Commands:
   init                Initialize the project (create .env file)
   serve               Start the PHP development server
-  setup:sqlite        Set up a SQLite database
+  setup:sqlite        Set up a SQLite database and run migrations
+  migrate             Run pending database migrations (database/migrations)
   key:generate        Generate a random JWT_SECRET in .env (use --force to skip the prompt)
   user:promote NAME   Make a user an admin (use --role=user to demote)
   help                Show this help message
@@ -67,6 +73,7 @@ Examples:
   php mvc serve --host 0.0.0.0 --port 8888
   php mvc setup:sqlite
   php mvc setup:sqlite --dbname mydatabase.db
+  php mvc migrate
   php mvc key:generate
   php mvc user:promote alice
 
@@ -90,6 +97,16 @@ function readStdin($prompt = '') {
 }
 
 /**
+ * Quote a value for .env when it contains characters that would otherwise be misread.
+ */
+function formatEnvValue($value) {
+    if ($value !== '' && !preg_match('/[\s#"\'\\\\$]/', $value)) {
+        return $value;
+    }
+    return '"' . addcslashes($value, '"\\$') . '"';
+}
+
+/**
  * Update or set a variable in the .env file
  * 
  * @param string $key The variable name
@@ -97,20 +114,25 @@ function readStdin($prompt = '') {
  * @param string $envFile Path to .env file
  */
 function updateEnvVariable($key, $value, $envFile = '.env') {
+    $line = $key . '=' . formatEnvValue($value);
+
     if (!file_exists($envFile)) {
-        file_put_contents($envFile, "{$key}={$value}\n");
+        file_put_contents($envFile, $line . "\n");
         return;
     }
-    
+
     $content = file_get_contents($envFile);
-    $pattern = "/^{$key}=.*$/m";
-    
+    $pattern = '/^' . preg_quote($key, '/') . '=.*$/m';
+
     if (preg_match($pattern, $content)) {
-        $content = preg_replace($pattern, "{$key}={$value}", $content);
+        // Callback form: the value is inserted literally ($1, \0 etc. are NOT interpreted)
+        $content = preg_replace_callback($pattern, function () use ($line) {
+            return $line;
+        }, $content, 1);
     } else {
-        $content .= "{$key}={$value}\n";
+        $content = rtrim($content) . "\n" . $line . "\n";
     }
-    
+
     file_put_contents($envFile, $content);
 }
 
@@ -139,10 +161,13 @@ function createEnvFile() {
 }
 
 /**
- * Setup SQLite database
+ * Setup SQLite database file
+ * 
+ * An existing database is never deleted without an explicit "y" from the user.
  * 
  * @param string $dbname Database name
- * @param bool $silent Skip confirmation prompts
+ * @param bool $silent Non-interactive: keep an existing database instead of asking
+ * @return bool True if the database file is ready to use
  */
 function setupSqliteDatabase($dbname, $silent = false) {
     $dbPath = __DIR__ . '/data/' . $dbname;
@@ -153,55 +178,24 @@ function setupSqliteDatabase($dbname, $silent = false) {
             echo "Created data directory\n";
         }
     }
-    
-    if (!$silent) {
-        echo "Setting up SQLite database at {$dbPath}...\n";
-    }
 
     if (file_exists($dbPath)) {
-        if (!$silent) {
-            $response = readStdin("Database file already exists. Overwrite? (y/n): ");
-            if ($response !== 'y') {
-                echo "Skipping database setup.\n";
-                return false;
-            }
+        if ($silent) {
+            echo "Database already exists at {$dbPath}, keeping it.\n";
+            return true;
+        }
+        $response = readStdin("Database file already exists. Overwrite (this deletes all its data)? (y/n): ");
+        if ($response !== 'y') {
+            echo "Skipping database setup.\n";
+            return false;
         }
         unlink($dbPath);
-        if (!$silent) {
-            echo "Existing database removed.\n";
-        }
+        echo "Existing database removed.\n";
     }
 
     touch($dbPath);
-    if (!$silent) {
-        echo "✓ Database file created at {$dbPath}\n";
-    }
-
-    createInitialTables($dbPath);
+    echo "✓ Database file created at {$dbPath}\n";
     return true;
-}
-
-/**
- * Create initial database tables (migrations table)
- * 
- * @param string $dbPath Path to the SQLite database file
- */
-function createInitialTables($dbPath) {
-    try {
-        $pdo = new PDO("sqlite:{$dbPath}");
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        
-        // Create migrations table
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS migrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                migration VARCHAR(255) NOT NULL,
-                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
-    } catch (PDOException $e) {
-        echo "Warning: Could not create initial tables: " . $e->getMessage() . "\n";
-    }
 }
 
 /**
@@ -274,6 +268,9 @@ function handleSetupSqliteCommand($args) {
         // Update .env with the new DSN
         updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
         echo "✓ Updated .env file with SQLite DSN\n";
+        if (!handleMigrateCommand()) {
+            exit(1);
+        }
     }
 }
 
@@ -294,13 +291,17 @@ function handleInitCommand() {
             $dbname .= '.db';
         }
         
-        // Setup SQLite database and update .env
+        // Create the database (an existing one is kept), point .env at it, and create the tables
         setupSqliteDatabase($dbname, true);
         updateEnvVariable('DB_DSN', "sqlite:./data/{$dbname}");
         echo ".env file updated with SQLite DSN\n";
+        if (!handleMigrateCommand()) {
+            exit(1);
+        }
     } else {
         echo "Using MySQL as default database.\n";
         updateEnvVariable('DB_DSN', "mysql:host=127.0.0.1;dbname=mvc_db");
+        echo "Next: create the database, set DB_USER / DB_PASS in .env, then run: php mvc migrate\n";
     }
 }
 
@@ -350,20 +351,66 @@ function handleKeyGenerateCommand($args) {
 
 /**
  * Boot just enough of the app (env + database + models) for CLI commands.
+ *
+ * @param bool $freezeInProduction Pass false for commands that change the schema (migrate).
  */
-function bootApp() {
+function bootApp($freezeInProduction = true) {
     if (!defined('BASE_PATH')) {
         define('BASE_PATH', __DIR__);
     }
     chdir(BASE_PATH);
     require_once BASE_PATH . '/libs/index.php';
     DotEnv::loadFromFile(BASE_PATH . '/.env');
-    if (empty($_ENV['DB_USER']) && empty($_ENV['DB_PASS'])) {
-        R::setup($_ENV['DB_DSN']);
-    } else {
-        R::setup($_ENV['DB_DSN'], $_ENV['DB_USER'], $_ENV['DB_PASS']);
-    }
+    Database::connect($freezeInProduction);
     require_once BASE_PATH . '/models/User.php';
+}
+
+/**
+ * Run every migration in database/migrations that hasn't run yet.
+ * Runs with the schema unfrozen, so it also works when APP_ENV=production.
+ */
+function handleMigrateCommand() {
+    try {
+        bootApp(false);
+
+        if (!in_array('migration', R::inspect(), true)) {
+            $seed = R::dispense('migration');
+            $seed->name = '__init__';
+            $seed->executed_at = date('Y-m-d H:i:s');
+            R::store($seed);
+            R::trash($seed);
+        }
+
+        $done = R::getCol('SELECT name FROM migration');
+        $files = glob(__DIR__ . '/database/migrations/*.php') ?: [];
+        sort($files);
+
+        $ran = 0;
+        foreach ($files as $file) {
+            $name = basename($file, '.php');
+            if (in_array($name, $done, true)) {
+                continue;
+            }
+            echo "Migrating: {$name}\n";
+            $up = require $file;
+            if (!is_callable($up)) {
+                throw new Exception("Migration {$name} must return a function.");
+            }
+            $up();
+
+            $row = R::dispense('migration');
+            $row->name = $name;
+            $row->executed_at = date('Y-m-d H:i:s');
+            R::store($row);
+            $ran++;
+        }
+
+        echo $ran > 0 ? "✓ Ran {$ran} migration(s)\n" : "Nothing to migrate.\n";
+        return true;
+    } catch (Throwable $e) {
+        echo "Migration failed: " . $e->getMessage() . "\n";
+        return false;
+    }
 }
 
 function handleUserPromoteCommand($args) {

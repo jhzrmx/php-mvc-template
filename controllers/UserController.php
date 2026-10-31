@@ -94,10 +94,15 @@ class UserController {
                 $this->notFound($res, $id);
             }
             // Changing a password revokes old tokens; keep the person who did it signed in
+            $out = User::toArray($bean);
             if (!empty($data['password']) && $isSelf) {
-                Auth::login($bean);
+                $wantsToken = Auth::wantsToken();
+                $session = Auth::login($bean, !$wantsToken);
+                if ($wantsToken) {
+                    $out['token'] = $session['token']; // the old token was just revoked
+                }
             }
-            $res->status(200)->json(User::toArray($bean));
+            $res->status(200)->json($out);
         } catch (InvalidArgumentException $e) {
             $res->status(400)->json(['error' => 'Could not update user', 'message' => $e->getMessage()]);
         } catch (Throwable $e) {
