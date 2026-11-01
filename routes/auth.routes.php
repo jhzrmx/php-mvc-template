@@ -1,5 +1,7 @@
 <?php
 
+use JHz\Http\Route;
+
 // Old Routes but still supported:
 // Route::post('/login', 'AuthController@login');
 // Route::post('/register', 'AuthController@register');

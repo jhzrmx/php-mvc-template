@@ -20,6 +20,9 @@
  * reverse proxy, configure your web server to restore the real client IP
  * (e.g. mod_remoteip / real_ip_module) instead of trusting X-Forwarded-For here.
  */
+
+namespace JHz\Security;
+
 class RateLimiter {
     private static $dir = null;
 

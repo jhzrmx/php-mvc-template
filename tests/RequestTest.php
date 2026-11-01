@@ -2,6 +2,9 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Exceptions\ValidationException;
+use JHz\Http\Request;
+
 class RequestTest extends TestCase {
     private $server;
     private $get;

@@ -1,5 +1,12 @@
 <?php
 
+use JHz\Database\Database;
+use JHz\Exceptions\ErrorHandler;
+use JHz\Http\Route;
+use JHz\Security\Auth;
+use JHz\Security\JWT;
+use JHz\Support\DotEnv;
+
 if (!defined('BASE_PATH')) {
     define('BASE_PATH', __DIR__);
 }
@@ -12,7 +19,7 @@ header('Referrer-Policy: same-origin');
 require_once BASE_PATH . '/libs/index.php';
 
 // From here on, every uncaught exception, PHP warning and fatal error ends in one clean
-// error response (JSON or an HTML page) instead of a broken page. See libs/ErrorHandler.php.
+// error response (JSON or an HTML page) instead of a broken page. See libs/Exceptions/ErrorHandler.php.
 ErrorHandler::register();
 
 try {

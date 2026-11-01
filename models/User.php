@@ -1,5 +1,7 @@
 <?php
 
+use JHz\Database\Model;
+
 /**
  * User model using RedBean (table: user).
  * Fields: username, password_hash, email, role, token_version, created_at, updated_at

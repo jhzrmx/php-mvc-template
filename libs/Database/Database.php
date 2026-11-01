@@ -7,10 +7,16 @@
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
- * @dependencies env() helper (libs/DotEnv.php), RedBeanPHP (libs/RedbeanPHP/rb.php)
+ * @dependencies env() helper (libs/helpers.php), RedBeanPHP (libs/RedbeanPHP/rb.php)
  * @description Connects RedBeanPHP using the DB_* values from .env.
  * Shared by the web app (bootstrap.php) and the CLI (mvc).
  */
+
+namespace JHz\Database;
+
+use Exception;
+use R;
+
 class Database {
     /**
      * @param bool $freezeInProduction Freeze the schema when APP_ENV=production.

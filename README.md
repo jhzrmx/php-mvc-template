@@ -75,7 +75,7 @@ DB_PASS=secret
 
 Notes:
 
-- `JWT_SECRET` is **required**, must be **at least 32 characters**, and the old example value is rejected (enforced in `libs/JWT.php`). Generate one with `php mvc key:generate` (`php mvc init` does this for you).
+- `JWT_SECRET` is **required**, must be **at least 32 characters**, and the old example value is rejected (enforced in `libs/Security/JWT.php`). Generate one with `php mvc key:generate` (`php mvc init` does this for you).
 - `APP_ENV=production` freezes the RedBean schema and hides error details.
 - `DB_*` is used by RedBeanPHP via `R::setup(...)` in `bootstrap.php`.
 
@@ -173,7 +173,14 @@ location ~ \.php$ {
 ├─ routes/               # Route definitions (web + API groups)
 ├─ middleware/           # Route middleware (auth, authRedirect, role)
 ├─ views/                # Static HTML pages or PHP views (layouts/ for layouts, errors/ for error pages)
-├─ libs/                 # Router, JWT, DotEnv, Auth, Validator, Logger, RateLimiter, Database, RedBeanPHP
+├─ libs/                 # Framework code, PSR-4 namespace JHz\ (see "Namespaces and autoloading")
+│  ├─ Http/              #   Route, RouteDefinition, Request, Response
+│  ├─ Security/          #   Auth, JWT, RateLimiter
+│  ├─ Exceptions/        #   ErrorHandler, HttpException, ValidationException
+│  ├─ Support/           #   DotEnv, Log, Validator
+│  ├─ Database/          #   Database, Model
+│  ├─ RedbeanPHP/        #   RedBeanPHP (vendored, global class R)
+│  └─ helpers.php        #   Global functions: env(), e(), route(), abort()...
 ├─ database/migrations/  # Schema migrations (php mvc migrate)
 ├─ public/               # Web root: index.php (front controller) + .htaccess
 ├─ data/                 # SQLite database (outside the web root)
@@ -186,6 +193,34 @@ location ~ \.php$ {
 ├─ .htaccess             # Fallback: forwards to public/ if the docroot can't be changed
 └─ serve.cmd             # Convenience runner (Windows)
 ```
+
+## Namespaces and autoloading
+
+The classes in `libs/` live in the `JHz\` namespace and follow [PSR-4](https://www.php-fig.org/psr/psr-4/): `JHz\Http\Route` is `libs/Http/Route.php`. The folder is the "type", the file is the class.
+
+| Namespace | Classes |
+| --- | --- |
+| `JHz\Http` | `Route`, `RouteDefinition`, `Request`, `Response` |
+| `JHz\Security` | `Auth`, `JWT`, `RateLimiter` |
+| `JHz\Exceptions` | `ErrorHandler`, `HttpException`, `ValidationException` |
+| `JHz\Support` | `DotEnv`, `Log`, `Validator` |
+| `JHz\Database` | `Database`, `Model` |
+
+Import what you use, like in any namespaced PHP code:
+
+```php
+use JHz\Http\Request;
+use JHz\Http\Response;
+
+class PostController {
+    public function index(Request $req, Response $res) { /* ... */ }
+}
+```
+
+- **Your own code** (`controllers/`, `models/`, `middleware/`, `routes/`) stays in the global namespace, so `[PostController::class, 'index']` keeps working. Every file there needs `use` lines for the `JHz\` classes it uses, including route and middleware files (`use JHz\Http\Route;`). `php mvc make:controller` / `make:model` / `make:middleware` add them for you.
+- **No Composer needed to run the app.** `libs/index.php` loads `libs/autoload.php`, a tiny PSR-4 autoloader for `JHz\`. If you do run `composer install`, `composer.json` maps the same prefix.
+- **Global helpers** (`env()`, `e()`, `route()`, `abort()`...) can't be autoloaded, so `libs/helpers.php` is always loaded. RedBeanPHP is third-party code and stays as the global class `R`.
+- Adding a framework class: create `libs/<Type>/<Class>.php` with `namespace JHz\<Type>;`. `tests/AutoloadTest.php` fails if a file's path and namespace disagree.
 
 ## How routing works
 
@@ -300,6 +335,10 @@ A middleware may also type-hint `Request` and/or `Response` (injected, like cont
 
 ```php
 // middleware/admin.php
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Security\Auth;
+
 return function (Request $req, Response $res, array $params = []) {
     if (!User::isAdmin(Auth::currentUser())) {
         $res->error(403, 'Forbidden', 'Admins only');
@@ -316,6 +355,11 @@ Controller methods can type-hint `Request` and/or `Response` and they’ll be pa
 - **Closures / callable routes** can do the same:
 
 ```php
+// routes/*.php (the `use` lines go at the top of the file)
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Http\Route;
+
 Route::get('/api/dashboard', function(Request $req, Response $res) {
     $data = $req->body;
     $res->status(200)->send($data);
@@ -500,7 +544,7 @@ Updates accept `username`, `email` and `password` only; `role` cannot be changed
 
 ## Database (RedBeanPHP)
 
-This template uses RedBeanPHP (`libs/RedbeanPHP/`) with a small `Model` base class in `libs/RedbeanPHP/Model.php`.
+This template uses RedBeanPHP (`libs/RedbeanPHP/`) with a small `Model` base class in `libs/Database/Model.php` (`JHz\Database\Model`).
 
 - Example model: `models/User.php`
   - hashes passwords with `password_hash()`
@@ -558,6 +602,8 @@ The application itself still runs on PHP 7.0+, but PHPUnit 9.6 does not install 
 - Errors are rendered by `ErrorHandler`: unexpected failures in controllers are no longer caught one by one, `Request::validate()` throws `ValidationException` instead of responding, and 404/405 are `HttpException`s. Copy the new `.env.example` lines (`APP_DEBUG`, optionally `ERRORS_AS_EXCEPTIONS`) and set `APP_DEBUG=false` (or leave it unset) in production.
 - PHP warnings and notices are now exceptions. If third-party code of yours depends on a warning being ignored, silence that call with `@` or set `ERRORS_AS_EXCEPTIONS=false`.
 
+- **Namespaces:** the classes in `libs/` moved into the `JHz\` namespace (see [Namespaces and autoloading](#namespaces-and-autoloading)). Add `use JHz\...;` lines to your controllers, models, middleware, route files and tests, e.g. `use JHz\Http\Request;`. `Router.php` was split into `Http/Request.php`, `Http/Response.php`, `Http/Route.php` and `Http/RouteDefinition.php`, `HttpException.php` into two files, `Logger.php` is now `Support/Log.php`, and `RedbeanPHP/Model.php` is now `Database/Model.php`. `env()` moved from `DotEnv.php` to `helpers.php`.
+
 ## Contributing
 
 Contributions are welcome. If you’re unsure where to start, check the suggested areas in the “Ideas / Roadmap” section below.
@@ -589,7 +635,6 @@ git checkout -b feat/your-feature
 Good places to start contributing:
 
 - Tests for `Auth`, `AuthController`, `UserController` and the middleware
-- Split `libs/Router.php` into one file per class (`Request`, `Response`, `Route`)
 - Transactional migrations and a `migrate:rollback` command
 - Optional CSRF / `Origin` check for cookie-authenticated requests
 - A `Content-Security-Policy` header (needs the inline scripts in `views/` moved out)

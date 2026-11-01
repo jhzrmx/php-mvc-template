@@ -8,14 +8,21 @@ require_once BASE_PATH . '/models/User.php';
  * Integration tests against an in-memory SQLite database (needs the pdo_sqlite extension).
  */
 class UserModelTest extends TestCase {
-    protected function setUp(): void {
+    public static function setUpBeforeClass(): void {
+        // R::setup() can only register the 'default' database once per process, and R::close()
+        // does not unregister it, so connect once for the whole class (a second setup() throws
+        // "A database has already been specified for this key").
         R::setup('sqlite::memory:');
-        R::freeze(false);
-        R::nuke();
     }
 
-    protected function tearDown(): void {
+    public static function tearDownAfterClass(): void {
         R::close();
+    }
+
+    protected function setUp(): void {
+        // A clean schema for every test
+        R::freeze(false);
+        R::nuke();
     }
 
     public function testCreateHashesThePasswordAndDefaultsToUserRole() {

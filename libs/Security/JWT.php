@@ -11,6 +11,11 @@
  * @description Sign and verify HS256 JSON Web Tokens (JWT). The secret must be at least 32 characters.
  * verify() requires an "exp" claim and allows 60 seconds of clock skew for exp, nbf and iat.
  */
+
+namespace JHz\Security;
+
+use Exception;
+
 class JWT {
     private $secret;
     private $leeway = 60;

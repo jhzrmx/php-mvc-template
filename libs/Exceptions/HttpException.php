@@ -19,6 +19,11 @@
  *
  * The ErrorHandler turns it into JSON (API / JSON clients) or an HTML error page.
  */
+
+namespace JHz\Exceptions;
+
+use RuntimeException;
+
 class HttpException extends RuntimeException {
     private static $titles = [
         400 => 'Bad Request',
@@ -88,37 +93,5 @@ class HttpException extends RuntimeException {
             return self::$titles[$status];
         }
         return $status >= 500 ? 'Server Error' : 'Error';
-    }
-}
-
-/**
- * Thrown when input fails validation (HTTP 422). Request::validate() throws it.
- * Catch it if you want to handle failures yourself (e.g. redirect back to a form):
- *
- *   try { $data = $req->validate([...]); }
- *   catch (ValidationException $e) { $e->errors(); }
- */
-class ValidationException extends HttpException {
-    private $errors;
-
-    /**
-     * @param array  $errors  ['field' => ['message', ...]]
-     * @param string $message Summary shown to the client (default: a generic sentence).
-     */
-    public function __construct(array $errors, $message = '', $previous = null) {
-        $this->errors = $errors;
-        parent::__construct(422, $message !== '' ? $message : 'The given data was invalid.', [], $previous);
-    }
-
-    public function errors() {
-        return $this->errors;
-    }
-
-    public function getTitle() {
-        return 'Validation failed';
-    }
-
-    public function getData() {
-        return ['errors' => $this->errors];
     }
 }

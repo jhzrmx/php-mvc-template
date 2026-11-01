@@ -2,6 +2,14 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Exceptions\ErrorHandler;
+use JHz\Exceptions\HttpException;
+use JHz\Exceptions\ValidationException;
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Http\Route;
+use JHz\Support\Log;
+
 class ErrorHandlerTest extends TestCase {
     private $server;
 

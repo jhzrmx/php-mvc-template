@@ -21,6 +21,12 @@
  *   }
  *   Post::paginate(2, 20, 'author_id = ?', [5], 'created_at DESC');
  */
+
+namespace JHz\Database;
+
+use InvalidArgumentException;
+use R;
+
 abstract class Model {
     /** @var string RedBean bean type (table name) */
     protected static $type = '';

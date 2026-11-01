@@ -2,6 +2,11 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Exceptions\HttpException;
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Http\Route;
+
 class RouterTest extends TestCase {
     private $server;
 
@@ -140,7 +145,7 @@ class RouterTest extends TestCase {
 
         $handler = function (Response $res, Request $req, $id, $extra = 'dflt') {
         };
-        $buildArgs = new ReflectionMethod('Route', 'buildArgs');
+        $buildArgs = new ReflectionMethod(Route::class, 'buildArgs');
         $buildArgs->setAccessible(true);
         $args = $buildArgs->invoke(null, new ReflectionFunction($handler), ['42']);
 

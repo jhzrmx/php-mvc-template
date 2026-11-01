@@ -1,5 +1,7 @@
 <?php
 
+use JHz\Http\Route;
+
 // This group is mounted at /api/users behind the `auth` middleware (see routes/api.php).
 // Listing and creating users is admin-only; the :id routes are limited to the account
 // owner or an admin inside UserController (authorizeAccess).

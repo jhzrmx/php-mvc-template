@@ -7,7 +7,7 @@
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
- * @dependencies HttpException (libs/HttpException.php), Route, Request and Response (libs/Router.php), env() helper (libs/DotEnv.php); uses Log (libs/Logger.php) when it is loaded
+ * @dependencies HttpException (libs/Exceptions/), Route, Request and Response (libs/Http/), env() helper (libs/helpers.php); uses Log (libs/Support/Log.php) when available
  * @description Central error handling. Call ErrorHandler::register() once at startup (bootstrap.php does).
  *
  * What it does
@@ -25,6 +25,16 @@
  * local/development/dev/testing. With no APP_ENV at all (e.g. a missing .env), details are shown
  * only to requests from the same machine.
  */
+
+namespace JHz\Exceptions;
+
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Http\Route;
+use JHz\Support\Log;
+use ErrorException;
+use Throwable;
+
 class ErrorHandler {
     private static $registered = false;
     private static $handling = false;
@@ -65,7 +75,7 @@ class ErrorHandler {
         }
 
         if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
-            if (class_exists('Log', false)) {
+            if (class_exists(Log::class)) {
                 Log::debug("Deprecated: $message in $file:$line");
             }
             return true;
@@ -214,7 +224,7 @@ class ErrorHandler {
 
     private static function report($e) {
         $status = $e instanceof HttpException ? $e->getStatusCode() : 500;
-        if (!class_exists('Log', false)) {
+        if (!class_exists(Log::class)) {
             error_log(get_class($e) . ': ' . $e->getMessage());
             return;
         }
@@ -279,7 +289,7 @@ class ErrorHandler {
                 return $response->render($view, $vars);
             } catch (Throwable $inner) {
                 // A missing view is normal; a view that is broken itself is logged
-                if (strpos($inner->getMessage(), 'View not found') !== 0 && class_exists('Log', false)) {
+                if (strpos($inner->getMessage(), 'View not found') !== 0 && class_exists(Log::class)) {
                     Log::warning('Error view failed: ' . $inner->getMessage());
                 }
             }

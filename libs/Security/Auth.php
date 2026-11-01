@@ -7,11 +7,16 @@
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
- * @dependencies JWT (libs/JWT.php), User (models/User.php), env() helper (libs/DotEnv.php)
+ * @dependencies JWT (libs/Security/JWT.php), User (models/User.php), env() helper (libs/helpers.php)
  * @description Simple auth helper. Holds JWT instance and current user payload.
  * Set by auth middleware after successful JWT verification.
  * Also handles token cookie storage and retrieval.
  */
+
+namespace JHz\Security;
+
+use User;
+
 class Auth {
     private static $jwt = null;
     private static $payload = null;

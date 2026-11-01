@@ -2,6 +2,8 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Support\Log;
+
 class LoggerTest extends TestCase {
     private $dir;
 

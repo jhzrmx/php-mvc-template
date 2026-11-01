@@ -2,6 +2,8 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Support\DotEnv;
+
 class DotEnvTest extends TestCase {
     private $file;
     private $names = [];

@@ -7,7 +7,7 @@
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
- * @dependencies env() helper (libs/DotEnv.php)
+ * @dependencies env() helper (libs/helpers.php)
  * @description Tiny file logger: storage/logs/app-YYYY-MM-DD.log
  *
  *   Log::info('User signed up', ['id' => 5]);
@@ -18,6 +18,9 @@
  * Default: "info" (and "warning" when APP_ENV=production). If the log directory isn't
  * writable it falls back to PHP's error_log(), so messages are never silently lost.
  */
+
+namespace JHz\Support;
+
 class Log {
     private static $levels = ['debug' => 100, 'info' => 200, 'warning' => 300, 'error' => 400];
     private static $dir = null;

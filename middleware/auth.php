@@ -1,5 +1,8 @@
 <?php
 
+use JHz\Http\Route;
+use JHz\Security\Auth;
+
 /**
  * Auth middleware (for API routes): validates the JWT, confirms the user still exists
  * and the token hasn't been revoked, then makes the user available via Auth::user().

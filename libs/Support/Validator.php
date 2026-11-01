@@ -30,6 +30,11 @@
  * (a field is treated as a number when it also has the integer or numeric rule).
  * max_bytes:n counts bytes, for limits that are really byte limits (e.g. bcrypt passwords, 72 bytes).
  */
+
+namespace JHz\Support;
+
+use InvalidArgumentException;
+
 class Validator {
     private $data;
     private $rules;

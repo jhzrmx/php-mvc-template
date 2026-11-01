@@ -2,6 +2,8 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Security\RateLimiter;
+
 class RateLimiterTest extends TestCase {
     private $dir;
 

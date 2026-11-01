@@ -7,10 +7,13 @@
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
- * @dependencies Route (libs/Router.php), HttpException (libs/HttpException.php)
- * @description Global helper functions: e() escapes output for HTML, route() builds the URL of a named route,
+ * @dependencies Route (libs/Http/Route.php), HttpException (libs/Exceptions/HttpException.php)
+ * @description Global helper functions: env() reads environment variables, e() escapes output for HTML, route() builds the URL of a named route,
  * and abort(), abort_if() and abort_unless() stop the request with an HTTP error.
  */
+
+use JHz\Exceptions\HttpException;
+use JHz\Http\Route;
 
 if (!function_exists('e')) {
     /**
@@ -77,5 +80,40 @@ if (!function_exists('abort_unless')) {
         if (!$condition) {
             abort($status, $message, $headers);
         }
+    }
+}
+
+if (!function_exists('env')) {
+    /**
+     * Read an environment variable. "true"/"false"/"null"/"empty" are cast to
+     * true/false/null/"" (like Laravel); everything else is returned as a string.
+     *
+     * @param string $key
+     * @param mixed  $default Returned when the variable isn't set.
+     * @return mixed
+     */
+    function env($key, $default = null) {
+        $value = $_ENV[$key] ?? getenv($key);
+        if ($value === false || $value === null) {
+            return $default;
+        }
+        if (!is_string($value)) {
+            return $value;
+        }
+        switch (strtolower($value)) {
+            case 'true':
+            case '(true)':
+                return true;
+            case 'false':
+            case '(false)':
+                return false;
+            case 'null':
+            case '(null)':
+                return null;
+            case 'empty':
+            case '(empty)':
+                return '';
+        }
+        return $value;
     }
 }

@@ -1,5 +1,10 @@
 <?php
 
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Security\Auth;
+use JHz\Security\RateLimiter;
+
 class UserController {
 
     /**

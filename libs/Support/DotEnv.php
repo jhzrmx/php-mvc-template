@@ -8,10 +8,15 @@
  * @link https://github.com/jhzrmx/php-mvc-template
  * @requires PHP 7.0+
  * @dependencies None (standalone, can be downloaded and used on its own)
- * @description Loads variables from a .env file into $_ENV and the process environment, and provides the
- * env() helper to read them back ("true"/"false"/"null"/"empty" are cast like in Laravel).
+ * @description Loads variables from a .env file into $_ENV and the process environment. The global env() helper
+ * (libs/helpers.php) reads them back ("true"/"false"/"null"/"empty" are cast like in Laravel).
  * See DotEnv::loadFromFile() for the supported syntax.
  */
+
+namespace JHz\Support;
+
+use Exception;
+
 class DotEnv {
     /**
      * Load environment variables from a .env file.
@@ -167,40 +172,5 @@ class DotEnv {
         return preg_replace_callback('/\$\{([A-Za-z0-9_]+)\}/', function ($matches) {
             return DotEnv::lookup($matches[1], $matches[0]);
         }, $value);
-    }
-}
-
-if (!function_exists('env')) {
-    /**
-     * Read an environment variable. "true"/"false"/"null"/"empty" are cast to
-     * true/false/null/"" (like Laravel); everything else is returned as a string.
-     *
-     * @param string $key
-     * @param mixed  $default Returned when the variable isn't set.
-     * @return mixed
-     */
-    function env($key, $default = null) {
-        $value = $_ENV[$key] ?? getenv($key);
-        if ($value === false || $value === null) {
-            return $default;
-        }
-        if (!is_string($value)) {
-            return $value;
-        }
-        switch (strtolower($value)) {
-            case 'true':
-            case '(true)':
-                return true;
-            case 'false':
-            case '(false)':
-                return false;
-            case 'null':
-            case '(null)':
-                return null;
-            case 'empty':
-            case '(empty)':
-                return '';
-        }
-        return $value;
     }
 }

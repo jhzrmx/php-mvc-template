@@ -1,6 +1,10 @@
 <?php
 
 // mvc - Main CLI runner script
+use JHz\Database\Database;
+use JHz\Http\Route;
+use JHz\Support\DotEnv;
+
 
 // Always run from the project root so .env, data/ etc. resolve no matter where the command is typed
 chdir(__DIR__);
@@ -516,6 +520,9 @@ function handleMakeControllerCommand($args) {
         $body = <<<'PHP'
 <?php
 
+use JHz\Http\Request;
+use JHz\Http\Response;
+
 class __NAME__ {
 
     /** GET /resource */
@@ -553,6 +560,9 @@ PHP;
         $body = <<<'PHP'
 <?php
 
+use JHz\Http\Request;
+use JHz\Http\Response;
+
 class __NAME__ {
 
     public function index(Request $req, Response $res) {
@@ -563,7 +573,7 @@ class __NAME__ {
 PHP;
     }
     makeFile("controllers/{$name}.php", str_replace('__NAME__', $name, $body));
-    echo "Register it in routes/, e.g.: Route::get('/path', [{$name}::class, 'index']);\n";
+    echo "Register it in routes/ (add `use JHz\\Http\\Route;` at the top), e.g.: Route::get('/path', [{$name}::class, 'index']);\n";
 }
 
 function handleMakeModelCommand($args) {
@@ -576,6 +586,8 @@ function handleMakeModelCommand($args) {
     $type = strtolower($name); // RedBean bean types are lower-case, without underscores
     $body = <<<'PHP'
 <?php
+
+use JHz\Database\Model;
 
 /**
  * __NAME__ model (table: __TYPE__).
@@ -601,6 +613,9 @@ function handleMakeMiddlewareCommand($args) {
     }
     $body = <<<'PHP'
 <?php
+
+use JHz\Http\Request;
+use JHz\Http\Response;
 
 /**
  * "__NAME__" middleware. Use it in routes as ['__NAME__'] or ['__NAME__:arg1,arg2'].

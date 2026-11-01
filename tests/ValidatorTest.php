@@ -2,6 +2,8 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Support\Validator;
+
 class ValidatorTest extends TestCase {
     public function testRequiredFailsWhenMissingOrBlank() {
         $v = Validator::make(['name' => '  '], ['name' => 'required', 'age' => 'required']);

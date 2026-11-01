@@ -1,5 +1,9 @@
 <?php
 
+use JHz\Http\Response;
+use JHz\Http\Route;
+use JHz\Security\Auth;
+
 Route::get('/', 'views/login.html');
 Route::get('/login', 'views/login.html')->name('login');
 Route::get('/signup', 'views/signup.html')->name('signup');

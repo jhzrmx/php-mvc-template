@@ -1,5 +1,7 @@
 <?php
 
+use JHz\Security\Auth;
+
 /**
  * Role middleware. Must run after `auth` / `authRedirect`.
  * Usage: ['auth', 'role:admin']  or  ['auth', 'role:admin,editor']

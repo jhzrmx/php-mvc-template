@@ -2,6 +2,10 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Exceptions\ErrorHandler;
+use JHz\Exceptions\HttpException;
+use JHz\Http\Response;
+
 /**
  * View rendering: a view or layout that fails must never leave partial output or open buffers behind.
  */

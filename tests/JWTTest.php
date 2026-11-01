@@ -2,6 +2,8 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Security\JWT;
+
 class JWTTest extends TestCase {
     const SECRET = 'a-test-secret-that-is-at-least-32-characters-long';
 

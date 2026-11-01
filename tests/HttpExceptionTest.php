@@ -2,6 +2,9 @@
 
 use PHPUnit\Framework\TestCase;
 
+use JHz\Exceptions\HttpException;
+use JHz\Exceptions\ValidationException;
+
 class HttpExceptionTest extends TestCase {
     public function testStatusTitleAndHeaders() {
         $e = new HttpException(429, 'Slow down', ['Retry-After' => 30]);
