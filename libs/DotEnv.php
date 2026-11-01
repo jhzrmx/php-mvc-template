@@ -6,6 +6,11 @@
  * @version 1.1.0
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
+ * @requires PHP 7.0+
+ * @dependencies None (standalone, can be downloaded and used on its own)
+ * @description Loads variables from a .env file into $_ENV and the process environment, and provides the
+ * env() helper to read them back ("true"/"false"/"null"/"empty" are cast like in Laravel).
+ * See DotEnv::loadFromFile() for the supported syntax.
  */
 class DotEnv {
     /**

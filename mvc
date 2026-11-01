@@ -33,6 +33,21 @@ switch ($command) {
     case 'key:generate':
         handleKeyGenerateCommand($args);
         break;
+    case 'make:controller':
+        handleMakeControllerCommand($args);
+        break;
+    case 'make:model':
+        handleMakeModelCommand($args);
+        break;
+    case 'make:middleware':
+        handleMakeMiddlewareCommand($args);
+        break;
+    case 'make:migration':
+        handleMakeMigrationCommand($args);
+        break;
+    case 'routes':
+        handleRoutesCommand();
+        break;
     case 'user:promote':
         handleUserPromoteCommand($args);
         break;
@@ -56,6 +71,11 @@ Commands:
   migrate             Run pending database migrations (database/migrations)
   key:generate        Generate a random JWT_SECRET in .env (use --force to skip the prompt)
   user:promote NAME   Make a user an admin (use --role=user to demote)
+  routes              List every registered route
+  make:controller N   Create controllers/NController.php (--api for REST methods)
+  make:model N        Create models/N.php
+  make:middleware N   Create middleware/N.php
+  make:migration N    Create database/migrations/<timestamp>_N.php
   help                Show this help message
 
 Serve Command Options:
@@ -76,6 +96,11 @@ Examples:
   php mvc migrate
   php mvc key:generate
   php mvc user:promote alice
+  php mvc routes
+  php mvc make:controller Post --api
+  php mvc make:model Post
+  php mvc make:middleware admin
+  php mvc make:migration create_post_table
 
 HELP;
 }
@@ -353,15 +378,18 @@ function handleKeyGenerateCommand($args) {
  * Boot just enough of the app (env + database + models) for CLI commands.
  *
  * @param bool $freezeInProduction Pass false for commands that change the schema (migrate).
+ * @param bool $connectDatabase    Pass false for commands that don't need the database (routes).
  */
-function bootApp($freezeInProduction = true) {
+function bootApp($freezeInProduction = true, $connectDatabase = true) {
     if (!defined('BASE_PATH')) {
         define('BASE_PATH', __DIR__);
     }
     chdir(BASE_PATH);
     require_once BASE_PATH . '/libs/index.php';
     DotEnv::loadFromFile(BASE_PATH . '/.env');
-    Database::connect($freezeInProduction);
+    if ($connectDatabase) {
+        Database::connect($freezeInProduction);
+    }
     require_once BASE_PATH . '/models/User.php';
 }
 
@@ -440,5 +468,220 @@ function handleUserPromoteCommand($args) {
     } catch (Throwable $e) {
         echo "Error: " . $e->getMessage() . "\n";
         exit(1);
+    }
+}
+
+/**
+ * First argument that isn't an option (--flag).
+ */
+function firstPositional($args) {
+    foreach ($args as $arg) {
+        if (strpos($arg, '-') !== 0) {
+            return $arg;
+        }
+    }
+    return null;
+}
+
+/**
+ * Write a new file (never overwrites) and report it.
+ */
+function makeFile($relativePath, $contents) {
+    $path = __DIR__ . '/' . $relativePath;
+    if (file_exists($path)) {
+        echo "Already exists: {$relativePath}\n";
+        exit(1);
+    }
+    $dir = dirname($path);
+    if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+        echo "Could not create folder: " . dirname($relativePath) . "\n";
+        exit(1);
+    }
+    file_put_contents($path, $contents);
+    echo "✓ Created {$relativePath}\n";
+}
+
+function handleMakeControllerCommand($args) {
+    $name = firstPositional($args);
+    if (!$name || !preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $name)) {
+        echo "Usage: php mvc make:controller Name [--api]\n(letters and digits only, e.g. Post or PostController)\n";
+        exit(1);
+    }
+    $name = ucfirst($name);
+    if (substr($name, -10) !== 'Controller') {
+        $name .= 'Controller';
+    }
+
+    if (in_array('--api', $args, true)) {
+        $body = <<<'PHP'
+<?php
+
+class __NAME__ {
+
+    /** GET /resource */
+    public function index(Request $req, Response $res) {
+        $res->status(200)->json(['data' => []]);
+    }
+
+    /** POST /resource */
+    public function store(Request $req, Response $res) {
+        $data = $req->validate([
+            // 'title' => 'required|string|max:255',
+        ], [], $req->json());
+
+        $res->status(201)->json($data);
+    }
+
+    /** GET /resource/:id */
+    public function show(Request $req, Response $res, string $id) {
+        $res->status(200)->json(['id' => $id]);
+    }
+
+    /** PUT|PATCH /resource/:id */
+    public function update(Request $req, Response $res, string $id) {
+        $res->status(200)->json(['id' => $id]);
+    }
+
+    /** DELETE /resource/:id */
+    public function destroy(Request $req, Response $res, string $id) {
+        $res->status(200)->json(['message' => 'Deleted']);
+    }
+}
+
+PHP;
+    } else {
+        $body = <<<'PHP'
+<?php
+
+class __NAME__ {
+
+    public function index(Request $req, Response $res) {
+        $res->status(200)->json(['message' => 'Hello from __NAME__']);
+    }
+}
+
+PHP;
+    }
+    makeFile("controllers/{$name}.php", str_replace('__NAME__', $name, $body));
+    echo "Register it in routes/, e.g.: Route::get('/path', [{$name}::class, 'index']);\n";
+}
+
+function handleMakeModelCommand($args) {
+    $name = firstPositional($args);
+    if (!$name || !preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $name)) {
+        echo "Usage: php mvc make:model Name\n(letters and digits only, e.g. Post)\n";
+        exit(1);
+    }
+    $name = ucfirst($name);
+    $type = strtolower($name); // RedBean bean types are lower-case, without underscores
+    $body = <<<'PHP'
+<?php
+
+/**
+ * __NAME__ model (table: __TYPE__).
+ * Inherited helpers: all(), find($id), findBean($id), where(), count(), paginate().
+ */
+class __NAME__ extends Model {
+    protected static $type = '__TYPE__';
+
+    /** Fields removed from JSON output. */
+    protected static $hidden = [];
+}
+
+PHP;
+    makeFile("models/{$name}.php", str_replace(['__NAME__', '__TYPE__'], [$name, $type], $body));
+    echo "Create its table with: php mvc make:migration create_{$type}_table\n";
+}
+
+function handleMakeMiddlewareCommand($args) {
+    $name = firstPositional($args);
+    if (!$name || !preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/', $name)) {
+        echo "Usage: php mvc make:middleware name\n";
+        exit(1);
+    }
+    $body = <<<'PHP'
+<?php
+
+/**
+ * "__NAME__" middleware. Use it in routes as ['__NAME__'] or ['__NAME__:arg1,arg2'].
+ * Request and Response are injected when declared; $params holds the arguments after the colon.
+ * Send a response (e.g. $res->error(403, 'Forbidden')) to stop the request, or return to continue.
+ */
+return function (Request $req, Response $res, array $params = []) {
+    // if (!$allowed) {
+    //     $res->error(403, 'Forbidden', 'Not allowed');
+    // }
+};
+
+PHP;
+    makeFile("middleware/{$name}.php", str_replace('__NAME__', $name, $body));
+}
+
+function handleMakeMigrationCommand($args) {
+    $name = firstPositional($args);
+    $name = $name ? strtolower(preg_replace('/[\s-]+/', '_', $name)) : null;
+    if (!$name || !preg_match('/^[a-z][a-z0-9_]*$/', $name)) {
+        echo "Usage: php mvc make:migration create_post_table\n";
+        exit(1);
+    }
+    $body = <<<'PHP'
+<?php
+
+/**
+ * Run with: php mvc migrate
+ *
+ * RedBean builds a table from a "seed" bean: the values you give decide the column types.
+ * Store the seed and delete it again so only the columns remain:
+ *
+ *   $seed = R::dispense('post');
+ *   $seed->title = 'seed';
+ *   $seed->views = 2000000000;   // large number => a real INT column
+ *   $seed->created_at = date('Y-m-d H:i:s');
+ *   R::store($seed);
+ *   R::trash($seed);
+ *
+ * Raw SQL works too: R::exec('CREATE INDEX ...');
+ */
+return function () {
+    // your schema changes here
+};
+
+PHP;
+    makeFile('database/migrations/' . date('Y_m_d_His') . "_{$name}.php", $body);
+}
+
+function handleRoutesCommand() {
+    try {
+        bootApp(true, false);
+        Route::loadRoutes();
+        $rows = Route::routes();
+    } catch (Throwable $e) {
+        echo "Error: " . $e->getMessage() . "\n";
+        exit(1);
+    }
+
+    if (!$rows) {
+        echo "No routes registered.\n";
+        return;
+    }
+
+    $headers = ['METHOD' => 'method', 'URI' => 'uri', 'NAME' => 'name', 'ACTION' => 'action', 'MIDDLEWARE' => 'middleware'];
+    $widths = [];
+    foreach ($headers as $title => $key) {
+        $widths[$key] = strlen($title);
+        foreach ($rows as $row) {
+            $widths[$key] = max($widths[$key], strlen($row[$key]));
+        }
+    }
+    $line = function ($cells) use ($headers, $widths) {
+        $out = [];
+        foreach ($headers as $title => $key) {
+            $out[] = str_pad($cells[$key], $widths[$key]);
+        }
+        return '  ' . rtrim(implode('  ', $out)) . "\n";
+    };
+    echo $line(array_combine(array_values($headers), array_keys($headers)));
+    foreach ($rows as $row) {
+        echo $line($row);
     }
 }

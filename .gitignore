@@ -14,3 +14,10 @@ data/*.db
 # Rate limiter state
 storage/ratelimit/*
 !storage/ratelimit/.gitkeep
+
+# PHPUnit
+.phpunit.result.cache
+
+# Application logs
+storage/logs/*
+!storage/logs/.gitkeep

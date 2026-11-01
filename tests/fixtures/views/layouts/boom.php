@@ -1,0 +1,1 @@
+<?php echo 'half'; throw new RuntimeException('layout exploded');

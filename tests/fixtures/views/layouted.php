@@ -1,0 +1,1 @@
+<?php $layout = 'layouts/wrap'; $title = 'T'; ?>body-<?= e($name) ?>

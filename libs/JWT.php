@@ -6,6 +6,10 @@
  * @version 1.0.0
  * @license MIT
  * @link https://github.com/jhzrmx/php-mvc-template
+ * @requires PHP 5.6+
+ * @dependencies None (standalone, can be downloaded and used on its own)
+ * @description Sign and verify HS256 JSON Web Tokens (JWT). The secret must be at least 32 characters.
+ * verify() requires an "exp" claim and allows 60 seconds of clock skew for exp, nbf and iat.
  */
 class JWT {
     private $secret;

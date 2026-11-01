@@ -1,0 +1,1 @@
+<?php throw new RuntimeException('error page is broken too');

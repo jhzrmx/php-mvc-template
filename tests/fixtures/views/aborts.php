@@ -1,0 +1,1 @@
+<?php abort(404, 'Post not found');

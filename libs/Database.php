@@ -1,7 +1,14 @@
 <?php
 
 /**
- * Connects RedBeanPHP using the DB_* values from .env.
+ * @package Database
+ * @author jhzrmx
+ * @version 1.0.0
+ * @license MIT
+ * @link https://github.com/jhzrmx/php-mvc-template
+ * @requires PHP 7.0+
+ * @dependencies env() helper (libs/DotEnv.php), RedBeanPHP (libs/RedbeanPHP/rb.php)
+ * @description Connects RedBeanPHP using the DB_* values from .env.
  * Shared by the web app (bootstrap.php) and the CLI (mvc).
  */
 class Database {

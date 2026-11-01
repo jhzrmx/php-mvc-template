@@ -1,16 +1,16 @@
 <?php
 
 Route::get('/', 'views/login.html');
-Route::get('/login', 'views/login.html');
-Route::get('/signup', 'views/signup.html');
-Route::get('/dashboard', 'views/dashboard.html', ['authRedirect']);
+Route::get('/login', 'views/login.html')->name('login');
+Route::get('/signup', 'views/signup.html')->name('signup');
+Route::get('/dashboard', 'views/dashboard.html', ['authRedirect'])->name('dashboard');
 
-Route::get('/dashboard-no-js', function(Response $res) {
-    $user = Auth::user();
-    $res->status(200)->pass(['user' => $user])->file('views/dashboard-no-js.php');
-}, ['authRedirect']);
+// A server-rendered page: views/dashboard-no-js.php inside views/layouts/app.php
+Route::get('/dashboard-no-js', function (Response $res) {
+    $res->view('dashboard-no-js', ['user' => Auth::user()]);
+}, ['authRedirect'])->name('dashboard.nojs');
 
-Route::post('/logout', function(Request $req, Response $res) {
+Route::post('/logout', function (Response $res) {
     Auth::logout(); // revokes all of this user's tokens and clears the cookie
     $res->redirect('/login');
-}, ['authRedirect']);
+}, ['authRedirect'])->name('logout');

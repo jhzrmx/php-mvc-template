@@ -2,7 +2,7 @@
 
 /**
  * User model using RedBean (table: user).
- * Fields: username, password_hash, email, role, token_version, created_at
+ * Fields: username, password_hash, email, role, token_version, created_at, updated_at
  *
  * Validation problems throw InvalidArgumentException; its message is safe to show to clients.
  * Any other exception (e.g. a PDOException) should be logged and NOT shown to clients.
@@ -25,16 +25,6 @@ class User extends Model {
         $username = trim((string) $username);
         if ($username === '') return null;
         return R::findOne(self::$type, ' username = ? ', [$username]);
-    }
-
-    /**
-     * Find a user bean by ID. Returns bean or null.
-     */
-    public static function findBean($id) {
-        $id = (int) $id;
-        if ($id <= 0) return null;
-        $bean = R::load(self::$type, $id);
-        return $bean->getID() ? $bean : null;
     }
 
     public static function isAdmin($bean) {
@@ -82,6 +72,7 @@ class User extends Model {
         $bean->role = $role;
         $bean->token_version = 0;
         $bean->created_at = date('Y-m-d H:i:s');
+        $bean->updated_at = $bean->created_at;
         try {
             R::store($bean);
         } catch (Throwable $e) {
@@ -120,6 +111,7 @@ class User extends Model {
      */
     public static function revokeTokens($bean) {
         $bean->token_version = (int) $bean->token_version + 1;
+        $bean->updated_at = date('Y-m-d H:i:s');
         R::store($bean);
     }
 
@@ -134,26 +126,20 @@ class User extends Model {
         }
         $bean->role = $role;
         $bean->token_version = (int) $bean->token_version + 1; // force re-login with the new role
+        $bean->updated_at = date('Y-m-d H:i:s');
         R::store($bean);
         return $bean;
     }
 
     /**
-     * Exclude hidden fields (password hash, token version) from array export.
+     * A user as a safe array: hidden fields removed, role always present.
      */
-    protected static function beanToArray($bean) {
-        return self::toArray($bean);
-    }
-
-    /** Public export for a single user bean (no secrets). */
     public static function toArray($bean) {
-        if (!$bean) return null;
-        $a = $bean->export();
-        foreach (static::$hidden as $field) {
-            unset($a[$field]);
+        $data = parent::toArray($bean);
+        if ($data !== null) {
+            $data['role'] = $data['role'] ?? self::ROLE_USER;
         }
-        $a['role'] = $a['role'] ?? self::ROLE_USER;
-        return $a;
+        return $data;
     }
 
     /**
@@ -188,6 +174,7 @@ class User extends Model {
             $bean->password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
             $bean->token_version = (int) $bean->token_version + 1;
         }
+        $bean->updated_at = date('Y-m-d H:i:s');
         try {
             R::store($bean);
         } catch (Throwable $e) {
