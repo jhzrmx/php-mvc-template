@@ -1,31 +1,35 @@
 <?php
 
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Security\Auth;
+use JHz\Security\RateLimiter;
+
 class AuthController {
 
     // Login throttling: failed attempts per (IP + username) and per IP
-    private const LOGIN_MAX_PER_USER = 5;
-    private const LOGIN_MAX_PER_IP = 20;
-    private const LOGIN_WINDOW = 900; // 15 minutes
+    // (constants are public: PHP 7.0 has no private/protected class constants)
+    const LOGIN_MAX_PER_USER = 5;
+    const LOGIN_MAX_PER_IP = 20;
+    const LOGIN_WINDOW = 900; // 15 minutes
     // Registration throttling: attempts per IP
-    private const REGISTER_MAX_PER_IP = 10;
-    private const REGISTER_WINDOW = 3600; // 1 hour
+    const REGISTER_MAX_PER_IP = 10;
+    const REGISTER_WINDOW = 3600; // 1 hour
 
-    private function clientIp() {
-        return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    }
-
-    private function tooManyRequests(Response $res, $retryAfter) {
+    private function tooManyRequests($retryAfter) {
         $retryAfter = max(1, (int) $retryAfter);
-        header('Retry-After: ' . $retryAfter);
-        $res->status(429)->json([
-            'error' => 'Too many attempts',
-            'message' => 'Please try again in ' . $retryAfter . ' seconds'
-        ]);
+        abort(429, 'Please try again in ' . $retryAfter . ' seconds', ['Retry-After' => $retryAfter]);
     }
 
-    private function serverError(Response $res, Throwable $e) {
-        error_log(get_class($e) . ': ' . $e->getMessage());
-        $res->status(500)->json(['error' => 'Internal Server Error', 'message' => 'An unexpected error occurred']);
+    /**
+     * The JSON body, with "email" accepted as an alias for "username".
+     */
+    private function credentials(Request $req) {
+        $body = $req->json();
+        if (!isset($body['username']) && isset($body['email'])) {
+            $body['username'] = $body['email'];
+        }
+        return $body;
     }
 
     /**
@@ -34,44 +38,40 @@ class AuthController {
      * Looks up user in DB (RedBean) and verifies password.
      */
     public function login(Request $req, Response $res) {
-        $body = is_array($req->body) ? $req->body : [];
-        $username = trim((string) ($body['username'] ?? $body['email'] ?? ''));
-        $password = $body['password'] ?? '';
+        $data = $req->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
+        ], [], $this->credentials($req));
 
-        if ($username === '' || !is_string($password) || $password === '') {
-            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
-        }
+        $username = trim($data['username']);
+        $password = $data['password'];
 
-        $ip = $this->clientIp();
+        $ip = $req->ip();
         $userKey = 'login:' . $ip . ':' . strtolower($username);
         $ipKey = 'login-ip:' . $ip;
 
         if (RateLimiter::tooManyAttempts($userKey, self::LOGIN_MAX_PER_USER)) {
-            $this->tooManyRequests($res, RateLimiter::retryAfter($userKey));
+            $this->tooManyRequests(RateLimiter::retryAfter($userKey));
         }
         if (RateLimiter::tooManyAttempts($ipKey, self::LOGIN_MAX_PER_IP)) {
-            $this->tooManyRequests($res, RateLimiter::retryAfter($ipKey));
+            $this->tooManyRequests(RateLimiter::retryAfter($ipKey));
         }
 
-        try {
-            $userBean = User::findByUsername($username);
+        $userBean = User::findByUsername($username);
 
-            // Same work and same message whether the user exists or not (no username enumeration)
-            $valid = $userBean
-                ? User::verifyPassword($userBean, $password)
-                : User::dummyVerify($password);
+        // Same work and same message whether the user exists or not (no username enumeration)
+        $valid = $userBean
+            ? User::verifyPassword($userBean, $password)
+            : User::dummyVerify($password);
 
-            if (!$userBean || !$valid) {
-                RateLimiter::hit($userKey, self::LOGIN_MAX_PER_USER, self::LOGIN_WINDOW);
-                RateLimiter::hit($ipKey, self::LOGIN_MAX_PER_IP, self::LOGIN_WINDOW);
-                $res->status(401)->json(['error' => 'Invalid credentials', 'message' => 'Invalid username or password']);
-            }
-
-            RateLimiter::clear($userKey);
-            $this->respondWithToken($res, $userBean);
-        } catch (Throwable $e) {
-            $this->serverError($res, $e);
+        if (!$userBean || !$valid) {
+            RateLimiter::hit($userKey, self::LOGIN_MAX_PER_USER, self::LOGIN_WINDOW);
+            RateLimiter::hit($ipKey, self::LOGIN_MAX_PER_IP, self::LOGIN_WINDOW);
+            $res->error(401, 'Invalid credentials', 'Invalid username or password');
         }
+
+        RateLimiter::clear($userKey);
+        $this->respondWithToken($res, $userBean);
     }
 
     private function respondWithToken(Response $res, $userBean, $status = 200) {
@@ -92,26 +92,24 @@ class AuthController {
      * Body: { "username": "...", "password": "...", "email": "..." (optional) }
      */
     public function register(Request $req, Response $res) {
-        $body = is_array($req->body) ? $req->body : [];
-        $username = trim((string) ($body['username'] ?? $body['email'] ?? ''));
-        $password = $body['password'] ?? '';
-        $email = isset($body['email']) ? trim((string) $body['email']) : null;
-
-        if (!RateLimiter::hit('register:' . $this->clientIp(), self::REGISTER_MAX_PER_IP, self::REGISTER_WINDOW)) {
-            $this->tooManyRequests($res, RateLimiter::retryAfter('register:' . $this->clientIp()));
+        // Count every attempt, valid or not
+        $key = 'register:' . $req->ip();
+        if (!RateLimiter::hit($key, self::REGISTER_MAX_PER_IP, self::REGISTER_WINDOW)) {
+            $this->tooManyRequests(RateLimiter::retryAfter($key));
         }
 
-        if ($username === '' || !is_string($password) || $password === '') {
-            $res->status(400)->json(['error' => 'Missing required fields', 'message' => 'Username and password are required']);
-        }
+        $data = $req->validate([
+            'username' => 'required|string|max:255',
+            'password' => 'required|string|min:8|max_bytes:72',
+            'email' => 'nullable|email|max:255',
+        ], [], $this->credentials($req));
 
         try {
-            $bean = User::create($username, $password, $email); // role is always 'user' here
+            // role is always 'user' here
+            $bean = User::create(trim($data['username']), $data['password'], $data['email'] ?? null);
             $this->respondWithToken($res, $bean);
         } catch (InvalidArgumentException $e) {
-            $res->status(400)->json(['error' => 'Sign up failed', 'message' => $e->getMessage()]);
-        } catch (Throwable $e) {
-            $this->serverError($res, $e);
+            $res->error(400, 'Sign up failed', $e->getMessage());
         }
     }
 
@@ -122,7 +120,7 @@ class AuthController {
     public function me(Request $req, Response $res) {
         $user = Auth::user();
         if (!$user) {
-            $res->status(401)->json(['error' => 'Not authenticated']);
+            $res->error(401, 'Not authenticated');
         }
         $res->status(200)->json(['user' => $user]);
     }

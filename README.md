@@ -2,22 +2,28 @@
 
 A lightweight **PHP MVC starter** with a simple router, middleware support, JWT authentication, and [RedBeanPHP](https://github.com/gabordemooij/redbean) for database access. Designed to be easy to understand, easy to extend, and friendly for those who started with Laravel.
 
-> ## WARNING: The whole codebase in undergoing full rewrite, stay tuned for exciting new changes. Don't use this in your project yet.
-
 ## Features
 
 - **Model-View-Controller structure**: `routes/`, `controllers/`, `models/`, `views/`
-- **Router with middleware + groups**: supports `GET/POST/PUT/PATCH/DELETE`, route params (`/:id`), and route groups
-- **Dependency injection (lightweight)**: controller methods can receive `Request` and `Response`
+- **Router with middleware + groups**: `GET/POST/PUT/PATCH/DELETE`, route params with optional constraints (`/:id(\d+)`), named routes, `405 Method Not Allowed`, JSON 404s for the API, and route groups
+- **Dependency injection (lightweight)**: controllers, closures and middleware can receive `Request` and `Response`; handlers can just `return` an array to send JSON
+- **Error handling**: `HttpException` / `abort()`, one central `ErrorHandler` (JSON or HTML error pages, debug mode, logging), and views that can't leave a half-rendered page
+- **Validator**, **Logger**, **view layouts** with an `e()` escape helper, and `Model::paginate()`
 - **JWT auth** (HS256): login/register endpoints + protected routes via middleware
 - **DotEnv loader**: `.env` support with quoting, escapes and `${VAR}` expansion; values stay strings, read them with `env('KEY', $default)`
 - **RedBeanPHP** ORM: simple model base class and example `User` model
 - **Migrations**: `php mvc migrate` creates and updates tables, so it works with a frozen schema in production
+- **CLI generators**: `php mvc make:controller|model|middleware|migration`, `php mvc routes`
+- **Tests**: PHPUnit suite (`composer test`) and a GitHub Actions workflow
 - **Friendly defaults**: ready-to-run pages (`/login`, `/signup`, `/dashboard`) and API routes under `/api/*`
 
 ## Requirements
 
-- **PHP 8.0+** (the router uses `str_contains` and typed properties)
+- **PHP 7.0+** (also runs on PHP 8.x). The code avoids anything newer than 7.0: no typed properties, nullable/`void` types, `fn()` arrow functions, `str_contains()` and so on, so keep that in mind when you add code.
+  - On PHP 7.0 - 7.2 the auth cookie is sent as a raw `Set-Cookie` header (the `setcookie()` options array and `SameSite` need PHP 7.3); behaviour is the same.
+  - Before PHP 7.2, `Response::json()` answers `500` for a payload containing invalid UTF-8 (7.2+ substitutes the bad bytes instead).
+  - Each file in `libs/` starts with a header that states the PHP version it needs and whether it is standalone or depends on other files.
+  - The **test suite** needs **PHP 7.3+** (PHPUnit 9.6). Running the app on PHP 7.0 - 7.2 is fine, but running the tests there requires modifying them, see [Testing](#testing).
 - A database supported by PDO (see [RedBeanPHP connection guide](https://www.redbeanphp.com/index.php?p=/connection))
 
 ## Quick start
@@ -69,7 +75,7 @@ DB_PASS=secret
 
 Notes:
 
-- `JWT_SECRET` is **required**, must be **at least 32 characters**, and the old example value is rejected (enforced in `libs/JWT.php`). Generate one with `php mvc key:generate` (`php mvc init` does this for you).
+- `JWT_SECRET` is **required**, must be **at least 32 characters**, and the old example value is rejected (enforced in `libs/Security/JWT.php`). Generate one with `php mvc key:generate` (`php mvc init` does this for you).
 - `APP_ENV=production` freezes the RedBean schema and hides error details.
 - `DB_*` is used by RedBeanPHP via `R::setup(...)` in `bootstrap.php`.
 
@@ -166,18 +172,55 @@ location ~ \.php$ {
 ├─ models/               # Models (RedBean-backed)
 ├─ routes/               # Route definitions (web + API groups)
 ├─ middleware/           # Route middleware (auth, authRedirect, role)
-├─ views/                # Static HTML pages or dynamic PHP pages
-├─ libs/                 # Router, JWT, DotEnv, Auth, RateLimiter, Database, RedBeanPHP
+├─ views/                # Static HTML pages or PHP views (layouts/ for layouts, errors/ for error pages)
+├─ libs/                 # Framework code, PSR-4 namespace JHz\ (see "Namespaces and autoloading")
+│  ├─ Http/              #   Route, RouteDefinition, Request, Response
+│  ├─ Security/          #   Auth, JWT, RateLimiter
+│  ├─ Exceptions/        #   ErrorHandler, HttpException, ValidationException
+│  ├─ Support/           #   DotEnv, Log, Validator
+│  ├─ Database/          #   Database, Model
+│  ├─ RedbeanPHP/        #   RedBeanPHP (vendored, global class R)
+│  └─ helpers.php        #   Global functions: env(), e(), route(), abort()...
 ├─ database/migrations/  # Schema migrations (php mvc migrate)
 ├─ public/               # Web root: index.php (front controller) + .htaccess
 ├─ data/                 # SQLite database (outside the web root)
-├─ storage/              # Runtime files, e.g. rate-limiter state (outside the web root)
+├─ storage/              # Runtime files: logs/, ratelimit/ (outside the web root)
+├─ tests/                # PHPUnit tests (composer test)
 ├─ bootstrap.php         # App bootstrap
 ├─ mvc                   # CLI Runner
+├─ composer.json         # Dev tooling only (PHPUnit); the app itself has no dependencies
 ├─ .env.example          # Environment template
 ├─ .htaccess             # Fallback: forwards to public/ if the docroot can't be changed
 └─ serve.cmd             # Convenience runner (Windows)
 ```
+
+## Namespaces and autoloading
+
+The classes in `libs/` live in the `JHz\` namespace and follow [PSR-4](https://www.php-fig.org/psr/psr-4/): `JHz\Http\Route` is `libs/Http/Route.php`. The folder is the "type", the file is the class.
+
+| Namespace | Classes |
+| --- | --- |
+| `JHz\Http` | `Route`, `RouteDefinition`, `Request`, `Response` |
+| `JHz\Security` | `Auth`, `JWT`, `RateLimiter` |
+| `JHz\Exceptions` | `ErrorHandler`, `HttpException`, `ValidationException` |
+| `JHz\Support` | `DotEnv`, `Log`, `Validator` |
+| `JHz\Database` | `Database`, `Model` |
+
+Import what you use, like in any namespaced PHP code:
+
+```php
+use JHz\Http\Request;
+use JHz\Http\Response;
+
+class PostController {
+    public function index(Request $req, Response $res) { /* ... */ }
+}
+```
+
+- **Your own code** (`controllers/`, `models/`, `middleware/`, `routes/`) stays in the global namespace, so `[PostController::class, 'index']` keeps working. Every file there needs `use` lines for the `JHz\` classes it uses, including route and middleware files (`use JHz\Http\Route;`). `php mvc make:controller` / `make:model` / `make:middleware` add them for you.
+- **No Composer needed to run the app.** `libs/index.php` loads `libs/autoload.php`, a tiny PSR-4 autoloader for `JHz\`. If you do run `composer install`, `composer.json` maps the same prefix.
+- **Global helpers** (`env()`, `e()`, `route()`, `abort()`...) can't be autoloaded, so `libs/helpers.php` is always loaded. RedBeanPHP is third-party code and stays as the global class `R`.
+- Adding a framework class: create `libs/<Type>/<Class>.php` with `namespace JHz\<Type>;`. `tests/AutoloadTest.php` fails if a file's path and namespace disagree.
 
 ## How routing works
 
@@ -189,10 +232,12 @@ Routes are loaded during app bootstrap from `bootstrap.php`:
 
 ```php
 Route::init();
-Route::loadModels();
 Route::loadMiddlewares();
-Route::loadRoutes(); // loads routes/web.php + routes/api.php (configurable)
+Route::loadRoutes();             // registers routes/web.php + routes/api.php (configurable)
+Route::add404('views/404.html'); // runs the matching route; if none matches: 404 (or 405)
 ```
+
+`Route::get()` & co. only **register** routes. The matching route runs when `Route::dispatch()` is called, which `add404()` and `setSPA()` do for you. Models and controllers are autoloaded by class name from `models/` and `controllers/`.
 
 - **CORS**
 
@@ -208,6 +253,8 @@ Route::cors(['https://app.example.com'], null, null, true);
 Route::get('/login', 'views/login.html');
 ```
 
+`.php` files are executed; other files (html, css, js, json, txt) are sent as-is.
+
 - **Controller routes**
 
 ```php
@@ -216,19 +263,58 @@ Route::post('/login', 'AuthController@login');
 Route::post('/login', [AuthController::class, 'login']);
 ```
 
-- **Route parameters**
+- **Route parameters and constraints**
 
 ```php
 Route::get('/api/users/:id', 'UserController@show');
-// Or use the new format:
-Route::post('/api/users/:id', [UserController::class, 'show']);
+Route::get('/api/users/:id(\d+)', [UserController::class, 'show']);  // digits only, otherwise 404
+Route::get('/tags/:slug', [TagController::class, 'show'])->where('slug', '[a-z-]+');
 ```
+
+Parameters are passed to the handler in order and URL-decoded. Constraint regexes can't contain `/`.
+
+- **Named routes**
+
+```php
+Route::get('/users/:id(\d+)', [UserController::class, 'show'])->name('users.show');
+
+route('users.show', ['id' => 5]);                 // "/users/5"
+route('users.show', ['id' => 5], ['tab' => 'x']); // "/users/5?tab=x"
+```
+
+Names must be unique. `->middleware('name')` adds middleware to a single route.
+
+- **Returning a response**
+
+Handlers can still call `$res->json(...)`, or simply return a value: an array/object is sent as JSON (status 200) and a string as HTML. Returning nothing does nothing, so existing handlers are unaffected.
+
+```php
+Route::get('/api/ping', function () {
+    return ['pong' => true];
+});
+```
+
+- **405, HEAD and 404**
+
+A path that exists under a different method answers `405` with an `Allow` header. `HEAD` is served by the matching `GET` route. Unmatched URLs answer `404`. Both are `HttpException`s rendered by the [error handler](#error-handling): JSON for `/api/*` and JSON clients, otherwise the page you pass to `add404()` (or `views/errors/404.php`, or a built-in page).
 
 - **Route groups**
 
 ```php
 Route::group('/api/users', 'user.routes', ['auth']);
+Route::group('/admin', function () {
+    Route::get('/stats', [StatsController::class, 'index']);
+}, ['auth', 'role:admin']);
 ```
+
+- **Resource routes**
+
+```php
+Route::apiResource('posts', PostController::class, ['auth']); // index, store, show, update (PUT+PATCH), destroy
+Route::resource('posts', PostController::class);              // adds create/edit pages
+```
+
+- **See every route**: `php mvc routes`
 
 ## Middleware in Routing
 
@@ -245,6 +331,23 @@ Built-in middleware: `auth` (API, 401 JSON), `authRedirect` (pages, redirects to
 
 Middleware parameters (optional): if you use `name:param1,param2`, the middleware receives an array of parameters as its `$params` argument (Router splits on `:` and `,`), very useful for **role-based access** routing.
 
+A middleware may also type-hint `Request` and/or `Response` (injected, like controllers); its remaining parameter is the arguments array. Send a response (`$res->error(403, 'Forbidden')`) or return an array/string to stop the request:
+
+```php
+// middleware/admin.php
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Security\Auth;
+
+return function (Request $req, Response $res, array $params = []) {
+    if (!User::isAdmin(Auth::currentUser())) {
+        $res->error(403, 'Forbidden', 'Admins only');
+    }
+};
+```
+
+Generate one with `php mvc make:middleware admin`.
+
 ## Request / Response
 
 Controller methods can type-hint `Request` and/or `Response` and they’ll be passed automatically by the router.
@@ -252,6 +355,11 @@ Controller methods can type-hint `Request` and/or `Response` and they’ll be pa
 - **Closures / callable routes** can do the same:
 
 ```php
+// routes/*.php (the `use` lines go at the top of the file)
+use JHz\Http\Request;
+use JHz\Http\Response;
+use JHz\Http\Route;
+
 Route::get('/api/dashboard', function(Request $req, Response $res) {
     $data = $req->body;
     $res->status(200)->send($data);
@@ -263,17 +371,17 @@ Route::get('/api/ping', function(Response $res) {
 ```
 
 - **`Request`** provides:
-  - `body`: JSON-decoded body (if valid JSON) or raw input string
-  - `params`: query string parameters (`$_GET`)
-  - `formData`: form body (`$_POST`)
-  - `files`: uploaded files (`$_FILES`)
+  - `body`: JSON-decoded body (if valid JSON) or raw input string; `json($key = null, $default = null)` always gives an array
+  - `params` (`$_GET`), `formData` (`$_POST`), `files` (`$_FILES`)
+  - `input($key, $default)`, `has($key)`, `only([...])`, `all()`: query + form + JSON merged (JSON wins)
+  - `method()`, `path()`, `ip()`, `header($name)`, `bearerToken()`, `isJson()`, `wantsJson()`
+  - `validate($rules, $messages = [], $data = null)`: throws a `ValidationException` on failure, see [Validation](#validation)
 
 - **`Response`** provides:
-  - `status(int $code)`
-  - `json(array $data)` (ends request)
-  - `send(string $text, string $contentType = 'text/plain')` (ends request)
-  - `file(string $file, array $data = [])` (includes a PHP file and ends request)
-  - `pass(array $data)` (stores variables for the next `file()` call)
+  - `status(int $code)` and `header($name, $value)` (both chainable)
+  - `json($data)`, `error($status, $error, $message = '')`, `noContent()`, `send($text, $contentType)`, `redirect($url)` (all end the request)
+  - `view($name, $data = [], $layout = null)` sends a view; `render(...)` returns it as a string; see [Views and layouts](#views-and-layouts)
+  - `file(string $file, array $data = [])` (includes a PHP file, buffered, and ends request) and `pass(array $data)` (variables for the next `file()`/`view()`)
 
 - **Passing variables to dynamic PHP views**
 
@@ -284,6 +392,95 @@ $res->status(200)->pass(['user' => $user])->file('views/dashboard-no-js.php');
 // or:
 $res->status(200)->file('views/dashboard-no-js.php', ['user' => $user]);
 ```
+
+## Error handling
+
+Every failure ends in one clean response, whether it's thrown in a controller, middleware, model, **or inside a PHP view**.
+
+```php
+abort(404);                                  // 404 Not Found
+abort(403, 'Admins only');                   // message is shown to the client
+abort(429, 'Slow down', ['Retry-After' => 30]);
+abort_if($post === null, 404, 'Post not found');
+abort_unless(Auth::check(), 401);
+
+throw new HttpException(409, 'Email already taken');   // same thing
+```
+
+`HttpException` messages are written for the client and are always shown. Anything else (a database error, a bug) is a `500` that shows only *"An unexpected error occurred"* in production and is logged with its stack trace.
+
+**What the central `ErrorHandler` does** (registered in `bootstrap.php`):
+
+- Answers **JSON** (`{"error": "Not Found", "message": "..."}`) for `/api/*`, `Accept: application/json`, JSON request bodies and AJAX; otherwise an **HTML error page**: `views/errors/<status>.php`, then `views/errors/error.php`, then a built-in page. Copy `views/errors/error.php` to `views/errors/404.php` (or `500.php`, ...) to customise one status. If your error page itself fails, the built-in page is used.
+- **Throws away partial output first.** Output buffers are discarded before the error response is sent, so a view that fails halfway (an exception, a PHP warning like an undefined variable, an `abort()`, even a fatal error) never leaves a broken page behind. This also covers layouts and views that forget to close an output buffer.
+- Turns **PHP warnings and notices into exceptions** (`ErrorException`), so they can't silently corrupt a page. Deprecations are only logged at `debug` level. Set `ERRORS_AS_EXCEPTIONS=false` to turn this off. `@`-silenced errors are ignored.
+- Catches **uncaught exceptions and fatal errors** (including out-of-memory and parse errors in included files).
+- **Logs** server errors (5xx) with `Log::exception()`; client errors (4xx) only at `debug` level.
+- **Never prints raw PHP errors** to visitors (`display_errors` is turned off).
+
+**Debug mode** shows the exception class, file, line and stack trace (paths are relative to the project) instead of the generic message, for server errors only. `APP_DEBUG=true|false` decides; if it isn't set, debug is on only for `APP_ENV=local|development`. With no `APP_ENV` at all (for example a missing `.env`), details are shown only to requests from the same machine. **Never set `APP_DEBUG=true` in production.**
+
+Handling errors yourself is still fine:
+
+```php
+try {
+    $user = User::create($name, $password);
+} catch (InvalidArgumentException $e) {      // domain/validation errors
+    $res->error(400, 'Sign up failed', $e->getMessage());
+}
+```
+
+Exceptions you don't catch go to the error handler. Don't catch `Throwable` just to format a 500; let it through so it's logged and rendered consistently.
+
+## Validation
+
+```php
+$data = $req->validate([
+    'username' => 'required|string|alpha_dash|min:3|max:32',
+    'email'    => 'nullable|email',
+    'age'      => 'integer|between:18,120',
+    'role'     => 'in:user,admin',
+    'password' => ['required', 'min:8', 'confirmed'],
+], [
+    'username.required' => 'Please choose a username',   // optional custom messages
+], $req->json());                                          // what to validate (default: all())
+```
+
+On failure it throws a `ValidationException` (HTTP 422), which the error handler answers with `{"error": "Validation failed", "message": "<first error>", "errors": {"field": ["..."]}}` (or an HTML error page that lists the errors). On success you get the validated fields back. To handle failures yourself, catch it: `catch (ValidationException $e) { $e->errors(); }`.
+
+Rules: `required`, `nullable`, `string`, `integer`, `numeric`, `boolean`, `array`, `email`, `url`, `date`, `alpha`, `alpha_num`, `alpha_dash`, `min:n`, `max:n`, `max_bytes:n`, `between:a,b`, `in:a,b`, `not_in:a,b`, `regex:/pattern/`, `same:field`, `confirmed`. Empty optional fields skip their other rules; only the first failing rule per field is reported. `min`/`max`/`between` measure the number for `integer`/`numeric` fields, the characters for strings and the items for arrays. `max_bytes` counts bytes instead (the auth endpoints use it for passwords, because bcrypt ignores everything past 72 bytes).
+
+You can also use it directly: `$v = Validator::make($data, $rules); $v->fails(); $v->errors(); $v->validated();`
+
+## Views and layouts
+
+```php
+// routes
+$res->view('dashboard-no-js', ['user' => Auth::user()]);   // views/dashboard-no-js.php
+```
+
+```php
+<?php // views/dashboard-no-js.php
+$layout = 'layouts/app';   // optional: wrap this page in views/layouts/app.php
+$title = 'Dashboard';
+?>
+<h2>Welcome, <?= e($user['username']) ?></h2>
+```
+
+The layout receives the rendered page as `$content` (already HTML, so echo it raw: `<?= $content ?>`) and `$title`. **Always escape user-controlled values with `e()`.** View names may contain letters, digits, `_`, `-` and `/`.
+
+A page is always rendered completely in memory before anything is sent, so a view that fails can't leave half a page in the browser (see [Error handling](#error-handling)). Inside a view you can call `abort(404)`; `$res->render('name', $data)` returns the HTML as a string (e.g. for emails).
+
+## Logging
+
+```php
+Log::info('User signed up', ['id' => 5]);
+Log::warning('Slow query');
+Log::error('Something broke');
+Log::exception($e);
+```
+
+Entries go to `storage/logs/app-YYYY-MM-DD.log`, one line each (newlines in messages are stripped so input can't forge log lines). Set `LOG_LEVEL` in `.env` (`debug`, `info`, `warning`, `error`); the default is `info`, or `warning` when `APP_ENV=production`.
 
 ## Authentication (JWT)
 
@@ -341,15 +538,71 @@ Base path: `/api/users` (protected by `auth` middleware via `routes/api.php`)
 | `PUT` / `PATCH /api/users/:id` | the user themself, or admin |
 | `DELETE /api/users/:id` | the user themself, or admin |
 
+`GET /api/users` is paginated: `?page=1&per_page=20` (max 100) returns `{"data": [...], "meta": {"page", "per_page", "total", "last_page"}}`.
+
 Updates accept `username`, `email` and `password` only; `role` cannot be changed over the API. Changing your own password requires `current_password`.
 
 ## Database (RedBeanPHP)
 
-This template uses RedBeanPHP (`libs/RedbeanPHP/`) with a small `Model` base class in `libs/RedbeanPHP/Model.php`.
+This template uses RedBeanPHP (`libs/RedbeanPHP/`) with a small `Model` base class in `libs/Database/Model.php` (`JHz\Database\Model`).
 
 - Example model: `models/User.php`
   - hashes passwords with `password_hash()`
-  - omits `password_hash` from API output
+  - omits `password_hash` and `token_version` from API output (`$hidden`)
+- Base class helpers (arrays, safe for JSON, `$hidden` fields removed): `all()`, `find($id)`, `where($sql, $bindings, $orderBy)`, `count($sql, $bindings)`, `paginate($page, $perPage, $sql, $bindings, $orderBy)`. `findBean($id)` returns the RedBean bean for code that needs to modify and store it.
+
+```php
+Post::paginate(2, 20, 'author_id = ?', [5], 'created_at DESC');
+// ['data' => [...], 'meta' => ['page' => 2, 'per_page' => 20, 'total' => 53, 'last_page' => 3]]
+```
+
+Bean types (table names) must be lower-case letters and digits. Put user input in `?` placeholders (`$bindings`), never inside `$sql`.
+
+## CLI
+
+```bash
+php mvc serve                         # dev server (serves only public/)
+php mvc migrate                       # run pending migrations
+php mvc routes                        # list routes
+php mvc make:controller Post --api    # controllers/PostController.php with REST methods
+php mvc make:model Post               # models/Post.php
+php mvc make:middleware admin         # middleware/admin.php
+php mvc make:migration create_post_table
+php mvc key:generate                  # new JWT_SECRET
+php mvc user:promote alice            # make a user an admin
+```
+
+## Testing
+
+```bash
+composer install     # installs PHPUnit 9.6 (dev only)
+composer test
+```
+
+The suite covers the validator, JWT, DotEnv parser, router matching, request helpers, rate limiter, logger, the error handler (including views that throw, warn or `abort()` halfway) and the `User` model (against in-memory SQLite, so `pdo_sqlite` is needed).
+
+The tests use **PHPUnit 9.6**, which supports **PHP 7.3 and all PHP 8.x versions**. The same command runs on GitHub Actions for PHP 7.3 to 8.5.
+
+### Running the tests on PHP 7.0 - 7.2
+
+The application itself still runs on PHP 7.0+, but PHPUnit 9.6 does not install on PHP 7.2 or lower, so the test files have to be modified to use an older PHPUnit (6.5 is the newest one that supports PHP 7.0):
+
+1. In `composer.json`, change `"phpunit/phpunit"` to `"^6.5"` (and delete `composer.lock` if you have one), then run `composer update`.
+2. In every file in `tests/`, drop the `: void` return type from `setUp()` and `tearDown()` (`protected function setUp() {`). PHP 7.0 doesn't have `void`.
+3. Replace `assertStringContainsString()` / `assertStringNotContainsString()` with `assertContains()` / `assertNotContains()`, and `assertIsArray($x)` with `assertInternalType('array', $x)`.
+4. Remove the `xsi:noNamespaceSchemaLocation` attribute from `phpunit.xml` (optional; PHPUnit 6.5 ignores it).
+
+## Upgrading from an earlier version of this template
+
+- Run `php mvc migrate` (adds `updated_at` to `user`).
+- `Route::get()` and friends now only register; the route runs at `Route::add404()` / `Route::setSPA()` / `Route::dispatch()`. If you declare routes after `loadRoutes()` that's still fine, as long as you call `add404()` last.
+- `Route::loadModels()` is optional now (autoloading); `bootstrap.php` no longer calls it.
+- `User::all()` / `GET /api/users` now return a list (`[...]`) inside `data`, not an object keyed by id, and the users endpoint is paginated.
+- Validation failures on auth and user endpoints now answer `422` with an `errors` map (they used to answer `400`).
+- Errors are rendered by `ErrorHandler`: unexpected failures in controllers are no longer caught one by one, `Request::validate()` throws `ValidationException` instead of responding, and 404/405 are `HttpException`s. Copy the new `.env.example` lines (`APP_DEBUG`, optionally `ERRORS_AS_EXCEPTIONS`) and set `APP_DEBUG=false` (or leave it unset) in production.
+- PHP warnings and notices are now exceptions. If third-party code of yours depends on a warning being ignored, silence that call with `@` or set `ERRORS_AS_EXCEPTIONS=false`.
+
+- **Namespaces:** the classes in `libs/` moved into the `JHz\` namespace (see [Namespaces and autoloading](#namespaces-and-autoloading)). Add `use JHz\...;` lines to your controllers, models, middleware, route files and tests, e.g. `use JHz\Http\Request;`. `Router.php` was split into `Http/Request.php`, `Http/Response.php`, `Http/Route.php` and `Http/RouteDefinition.php`, `HttpException.php` into two files, `Logger.php` is now `Support/Log.php`, and `RedbeanPHP/Model.php` is now `Database/Model.php`. `env()` moved from `DotEnv.php` to `helpers.php`.
 
 ## Contributing
 
@@ -377,12 +630,22 @@ git checkout -b feat/your-feature
    - why you changed it
    - how to test
 
+## Ideas / Roadmap
+
+Good places to start contributing:
+
+- Tests for `Auth`, `AuthController`, `UserController` and the middleware
+- Transactional migrations and a `migrate:rollback` command
+- Optional CSRF / `Origin` check for cookie-authenticated requests
+- A `Content-Security-Policy` header (needs the inline scripts in `views/` moved out)
+
 ## Security notes
 
 - JWT uses **HS256**, requires a strong `JWT_SECRET`, and requires an `exp` claim.
 - Do not store sensitive data in JWT payloads.
 - Use HTTPS in production when sending tokens via headers/cookies.
 - Serve only `public/`. Never point the web server at the project root.
+- Keep `APP_DEBUG` off in production: debug pages reveal file paths and stack traces.
 - If you deploy behind a reverse proxy, make your web server restore the real client IP (e.g. `mod_remoteip`, nginx `real_ip`); rate limiting uses `REMOTE_ADDR`.
 - With `APP_ENV=production` the schema is frozen: add the `role` (text) and `token_version` (integer, default 0) columns to an existing `user` table yourself.
 

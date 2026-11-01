@@ -1,0 +1,1 @@
+<?php $layout = 'layouts/boom'; ?>page

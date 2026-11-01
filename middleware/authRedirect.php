@@ -1,5 +1,8 @@
 <?php
 
+use JHz\Http\Route;
+use JHz\Security\Auth;
+
 /**
  * Same as auth but redirects to /login on failure (for protected page routes).
  */

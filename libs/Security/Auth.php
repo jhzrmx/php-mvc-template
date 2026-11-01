@@ -1,15 +1,27 @@
 <?php
 
 /**
- * Simple auth helper. Holds JWT instance and current user payload.
+ * @package Auth
+ * @author jhzrmx
+ * @version 1.0.0
+ * @license MIT
+ * @link https://github.com/jhzrmx/php-mvc-template
+ * @requires PHP 7.0+
+ * @dependencies JWT (libs/Security/JWT.php), User (models/User.php), env() helper (libs/helpers.php)
+ * @description Simple auth helper. Holds JWT instance and current user payload.
  * Set by auth middleware after successful JWT verification.
  * Also handles token cookie storage and retrieval.
  */
+
+namespace JHz\Security;
+
+use User;
+
 class Auth {
     private static $jwt = null;
     private static $payload = null;
     private static $user = null;
-    private static string $tokenCookie = 'token';
+    private static $tokenCookie = 'token';
 
     public static function init(JWT $jwt) {
         self::$jwt = $jwt;
@@ -30,17 +42,45 @@ class Auth {
     }
 
     /**
+     * Send the auth cookie (HttpOnly, SameSite=Lax, Secure on HTTPS).
+     *
+     * setcookie() only accepts an options array (and therefore SameSite) from PHP 7.3.
+     * On PHP 7.0 - 7.2 the same cookie is written as a raw Set-Cookie header instead.
+     *
+     * @param string $value   Cookie value ('' when deleting).
+     * @param int    $expires Unix timestamp.
+     * @return void
+     */
+    private static function sendTokenCookie($value, $expires) {
+        $secure = self::isSecureRequest();
+
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie(self::$tokenCookie, $value, [
+                'expires' => $expires,
+                'path' => '/',
+                'secure' => $secure,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+            return;
+        }
+
+        header(
+            'Set-Cookie: ' . self::$tokenCookie . '=' . rawurlencode($value)
+            . '; expires=' . gmdate('D, d M Y H:i:s', $expires) . ' GMT'
+            . '; Max-Age=' . max(0, $expires - time())
+            . '; path=/'
+            . ($secure ? '; Secure' : '')
+            . '; HttpOnly; SameSite=Lax',
+            false // add to, don't replace, other Set-Cookie headers
+        );
+    }
+
+    /**
      * Store a JWT token in an HTTP-only cookie.
      */
     public static function setTokenCookie(string $token, int $expiresIn) {
-        $secure = self::isSecureRequest();
-        setcookie(self::$tokenCookie, $token, [
-            'expires' => time() + $expiresIn,
-            'path' => '/',
-            'secure' => $secure,
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
+        self::sendTokenCookie($token, time() + $expiresIn);
     }
 
     /**
@@ -68,14 +108,7 @@ class Auth {
     }
 
     public static function clearTokenCookie() {
-        $secure = self::isSecureRequest();
-        setcookie(self::$tokenCookie, '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'secure' => $secure,
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
+        self::sendTokenCookie('', time() - 3600);
     }
 
     public static function getJwt() {

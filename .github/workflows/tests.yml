@@ -1,0 +1,38 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  # The app itself supports PHP 7.0+, but PHPUnit 9.6 needs 7.3+.
+  # This job checks the app code (everything except tests/) still parses on the oldest version.
+  lint-php-7-0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.0'
+      - name: Lint app files on PHP 7.0
+        run: |
+          status=0
+          while IFS= read -r file; do
+            php -l "$file" > /dev/null || status=1
+          done < <(find . -type f \( -name '*.php' -o -name mvc \) -not -path './vendor/*' -not -path './tests/*' -not -path './.git/*')
+          exit $status
+
+  phpunit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo_sqlite
+          tools: composer
+      - run: composer validate
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer test

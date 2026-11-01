@@ -1,7 +1,14 @@
 <?php
 
 /**
- * Minimal file-based rate limiter (fixed window). No database table needed,
+ * @package RateLimiter
+ * @author jhzrmx
+ * @version 1.0.0
+ * @license MIT
+ * @link https://github.com/jhzrmx/php-mvc-template
+ * @requires PHP 7.0+
+ * @dependencies None (standalone, can be downloaded and used on its own)
+ * @description Minimal file-based rate limiter (fixed window). No database table needed,
  * so it keeps working when RedBean is frozen in production.
  *
  * Usage:
@@ -13,6 +20,9 @@
  * reverse proxy, configure your web server to restore the real client IP
  * (e.g. mod_remoteip / real_ip_module) instead of trusting X-Forwarded-For here.
  */
+
+namespace JHz\Security;
+
 class RateLimiter {
     private static $dir = null;
 

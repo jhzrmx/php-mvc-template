@@ -1,11 +1,14 @@
 <?php
 
+use JHz\Database\Database;
+use JHz\Exceptions\ErrorHandler;
+use JHz\Http\Route;
+use JHz\Security\Auth;
+use JHz\Security\JWT;
+use JHz\Support\DotEnv;
+
 if (!defined('BASE_PATH')) {
     define('BASE_PATH', __DIR__);
-}
-
-function isProduction() {
-    return env('APP_ENV') === 'production';
 }
 
 // Baseline security headers for every response
@@ -13,9 +16,13 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: same-origin');
 
-try {
-    require_once BASE_PATH . '/libs/index.php';
+require_once BASE_PATH . '/libs/index.php';
 
+// From here on, every uncaught exception, PHP warning and fatal error ends in one clean
+// error response (JSON or an HTML page) instead of a broken page. See libs/Exceptions/ErrorHandler.php.
+ErrorHandler::register();
+
+try {
     DotEnv::loadFromFile(BASE_PATH . '/.env');
 
     Database::connect();
@@ -33,15 +40,11 @@ try {
     }
 
     Route::init();
-    Route::loadModels();
     Route::loadMiddlewares();
     Route::loadRoutes();
 
+    // Runs the matching route; if none matches, throws a 404 (or 405) HttpException
     Route::add404('views/404.html');
 } catch (Throwable $e) {
-    http_response_code(500);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Internal Server Error', 'message' => isProduction() ? 'An unexpected error occurred on the server.' : $e->getMessage()]);
-    error_log($e->getMessage() . "\n" . $e->getTraceAsString());
-    exit();
+    ErrorHandler::handle($e);
 }

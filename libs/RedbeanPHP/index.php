@@ -1,4 +1,3 @@
 <?php
 
-require_once 'rb.php';
-require_once 'Model.php';
+require_once __DIR__ . "/rb.php";
